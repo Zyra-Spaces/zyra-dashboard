@@ -1,57 +1,110 @@
 "use client";
 
-import { SignInPage as SignIn } from "@/components/auth/sign-in";
-import { useLogin } from "@/hooks/use-auth-mutations";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
+import Link from "next/link";
+import { useAuth } from "@/contexts/auth-context";
+import { AuthLayout, AuthInput, AuthButton, GoogleButton } from "@/components/auth/auth-layout";
 import { toast } from "react-toastify";
 
+export default function LoginPage() {
+  const { signIn, signInWithGoogle, isLoading, error, clearError } = useAuth();
+  const [showPassword, setShowPassword] = useState(false);
+  const [formData, setFormData] = useState({ email: "", password: "" });
 
-const SignInPage = () => {
-  const router = useRouter();
-  const loginMutation = useLogin();
-  const [error, setError] = useState<string>("");
-
-  const handleSignIn = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setError("");
-
-    const formData = new FormData(event.currentTarget);
-    const email = formData.get("email") as string;
-    const password = formData.get("password") as string;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    clearError();
 
     try {
-      await loginMutation.mutateAsync({ email, password });
-      toast.success("Login successful");
-      router.push("/dashboard");
+      await signIn(formData.email, formData.password);
+      toast.success("Welcome back!");
     } catch (err: any) {
-      const errorMessage =
-        err.response?.data?.message || "Invalid email or password";
-      setError(errorMessage);
-      console.error("Login error:", err);
-      toast.error(errorMessage);
+      toast.error(err.message || "Login failed");
     }
   };
 
-  const handleGoogleSignIn = () => {
-    console.log("Google sign-in not implemented");
-    toast.error("Google sign-in not implemented");
+  const handleGoogleSignIn = async () => {
+    try {
+      await signInWithGoogle();
+    } catch (err: any) {
+      toast.error(err.message || "Google sign-in failed");
+    }
   };
 
   return (
-    <div className="bg-background text-foreground">
-      {error && (
-        <div className="fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50">
-          {error}
-        </div>
-      )}
-      <SignIn
-        heroImageSrc="https://images.unsplash.com/photo-1642615835477-d303d7dc9ee9?w=2160&q=80"
-        onSignIn={handleSignIn}
-        onGoogleSignIn={handleGoogleSignIn}
-      />
-    </div>
-  );
-};
+    <AuthLayout heroImageSrc="/images/banner-1.png">
+      <h1 className="text-4xl font-light text-gray-900 mb-8 animate-fade-in animate-delay-100">
+        Log in
+      </h1>
 
-export default SignInPage;
+      <form className="space-y-4" onSubmit={handleSubmit}>
+        <div className="animate-fade-in animate-delay-200">
+          <AuthInput
+            label="Email*"
+            name="email"
+            type="email"
+            placeholder="Enter your email"
+            required
+            value={formData.email}
+            onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+          />
+        </div>
+
+        <div className="animate-fade-in animate-delay-300">
+          <label className="block text-xs font-medium text-gray-700 mb-2">
+            Password*
+          </label>
+          <div className="relative">
+            <input
+              name="password"
+              type={showPassword ? "text" : "password"}
+              placeholder="Enter your password"
+              required
+              value={formData.password}
+              onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+              className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4780C6] focus:border-transparent transition-all text-gray-900 placeholder-gray-400 pr-12 text-xs"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end animate-fade-in animate-delay-300">
+          <Link
+            href="/forgot-password"
+            className="text-xs text-[#4780C6] hover:underline transition-colors"
+          >
+            Forgot password?
+          </Link>
+        </div>
+
+        {error && (
+          <p className="text-red-500 text-xs animate-fade-in">{error}</p>
+        )}
+
+        <div className="animate-fade-in animate-delay-400">
+          <AuthButton type="submit" isLoading={isLoading}>
+            Sign in
+          </AuthButton>
+        </div>
+      </form>
+
+      <div className="animate-fade-in animate-delay-500 mt-4">
+        <GoogleButton onClick={handleGoogleSignIn} text="Sign in with Google" />
+      </div>
+
+      <p className="animate-fade-in animate-delay-600 text-center mt-6 text-gray-600 text-sm">
+        Don&apos;t have an account?{" "}
+        <Link href="/register" className="text-[#4780C6] hover:underline font-medium">
+          Sign up
+        </Link>
+      </p>
+    </AuthLayout>
+  );
+}

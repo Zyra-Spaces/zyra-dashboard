@@ -1,35 +1,19 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+import { type NextRequest } from "next/server";
+import { updateSession } from "@/lib/supabase/middleware";
 
-export function middleware(request: NextRequest) {
-  const token = request.cookies.get('accessToken')?.value;
-  const { pathname } = request.nextUrl;
-
-  // Protected routes that require authentication
-  const protectedRoutes = ['/dashboard'];
-  const isProtectedRoute = protectedRoutes.some((route) =>
-    pathname.startsWith(route)
-  );
-
-  // Auth routes that should redirect to dashboard if already logged in
-  const authRoutes = ['/login', '/reset-password'];
-  const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route));
-
-  // Redirect to login if accessing protected route without token
-  if (isProtectedRoute && !token) {
-    const url = new URL('/login', request.url);
-    return NextResponse.redirect(url);
-  }
-
-  // Redirect to dashboard if accessing auth routes with valid token
-  if (isAuthRoute && token) {
-    const url = new URL('/dashboard', request.url);
-    return NextResponse.redirect(url);
-  }
-
-  return NextResponse.next();
+export async function middleware(request: NextRequest) {
+  return await updateSession(request);
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/login', '/reset-password'],
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public files (public folder)
+     */
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
 };
