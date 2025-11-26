@@ -43,7 +43,6 @@ export async function updateSession(request: NextRequest) {
     "/verify-reset",
     "/new-password",
     "/set-password",
-    "/reset-password",
   ];
 
   // Protected routes that require authentication

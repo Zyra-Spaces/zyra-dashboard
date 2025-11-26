@@ -9,6 +9,7 @@ type AuthStep =
   | 'idle'
   | 'signing_up'
   | 'verifying_email'
+  | 'setting_password'
   | 'signing_in'
   | 'resetting_password'
   | 'verifying_reset_otp'
@@ -24,9 +25,10 @@ interface AuthState {
 }
 
 interface AuthContextType extends AuthState {
-  // Sign Up Flow
-  signUp: (email: string, password: string) => Promise<void>;
-  verifyEmail: (token: string) => Promise<void>;
+  // Sign Up Flow (email only -> OTP -> set password)
+  signUpWithEmail: (email: string) => Promise<void>;
+  verifyEmailOTP: (token: string) => Promise<void>;
+  setPassword: (password: string) => Promise<void>;
   
   // Sign In Flow
   signIn: (email: string, password: string) => Promise<void>;
@@ -39,7 +41,7 @@ interface AuthContextType extends AuthState {
   
   // General
   signOut: () => Promise<void>;
-  resendVerificationEmail: () => Promise<void>;
+  resendOTP: () => Promise<void>;
   clearError: () => void;
   setStep: (step: AuthStep) => void;
   setEmail: (email: string) => void;
@@ -91,53 +93,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           isAuthenticated: !!session?.user,
           isLoading: false,
         });
-
-        // Handle email confirmation from magic link
-        if (event === 'SIGNED_IN' && session?.user) {
-          router.push('/dashboard');
-        }
       }
     );
 
     return () => subscription.unsubscribe();
-  }, [supabase.auth, updateState, router]);
+  }, [supabase.auth, updateState]);
 
-  // Sign Up with Email & Password
-  const signUp = async (email: string, password: string) => {
+  // Sign Up with Email (sends OTP, no password yet)
+  const signUpWithEmail = async (email: string) => {
     updateState({ isLoading: true, error: null, step: 'signing_up' });
     
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signInWithOtp({
         email,
-        password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          shouldCreateUser: true,
         },
       });
 
       if (error) throw error;
 
-      // Check if email confirmation is required
-      if (data.user && !data.session) {
-        // Email confirmation required
-        updateState({ 
-          email, 
-          step: 'verifying_email', 
-          isLoading: false 
-        });
-      } else if (data.session) {
-        // No email confirmation required, user is signed in
-        updateState({ 
-          user: data.user, 
-          isAuthenticated: true, 
-          step: 'idle', 
-          isLoading: false 
-        });
-        router.push('/dashboard');
-      }
+      updateState({ 
+        email, 
+        step: 'verifying_email', 
+        isLoading: false 
+      });
     } catch (error: any) {
       updateState({ 
-        error: error.message || 'Failed to sign up', 
+        error: error.message || 'Failed to send verification code', 
         isLoading: false,
         step: 'idle'
       });
@@ -145,8 +128,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Verify Email with OTP Token
-  const verifyEmail = async (token: string) => {
+  // Verify Email OTP
+  const verifyEmailOTP = async (token: string) => {
     if (!state.email) {
       updateState({ error: 'Email not found. Please start over.' });
       return;
@@ -158,13 +141,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await supabase.auth.verifyOtp({
         email: state.email,
         token: token,
-        type: 'signup',
+        type: 'email',
       });
 
       if (error) throw error;
 
+      // User verified, now needs to set password
       updateState({ 
         user: data.user, 
+        step: 'setting_password', 
+        isLoading: false 
+      });
+    } catch (error: any) {
+      updateState({ 
+        error: error.message || 'Invalid verification code', 
+        isLoading: false 
+      });
+      throw error;
+    }
+  };
+
+  // Set Password (after email verification)
+  const setPassword = async (password: string) => {
+    updateState({ isLoading: true, error: null });
+
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+
+      if (error) throw error;
+
+      updateState({ 
         isAuthenticated: true, 
         step: 'idle', 
         isLoading: false,
@@ -173,7 +179,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       router.push('/dashboard');
     } catch (error: any) {
       updateState({ 
-        error: error.message || 'Invalid verification code', 
+        error: error.message || 'Failed to set password', 
         isLoading: false 
       });
       throw error;
@@ -236,8 +242,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     updateState({ isLoading: true, error: null, step: 'resetting_password' });
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/callback?type=recovery`,
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: false,
+        },
       });
 
       if (error) throw error;
@@ -249,7 +258,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
     } catch (error: any) {
       updateState({ 
-        error: error.message || 'Failed to send reset email', 
+        error: error.message || 'Failed to send reset code', 
         isLoading: false,
         step: 'idle'
       });
@@ -270,7 +279,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await supabase.auth.verifyOtp({
         email: state.email,
         token: token,
-        type: 'recovery',
+        type: 'email',
       });
 
       if (error) throw error;
@@ -316,8 +325,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Resend Verification Email
-  const resendVerificationEmail = async () => {
+  // Resend OTP
+  const resendOTP = async () => {
     if (!state.email) {
       updateState({ error: 'Email not found. Please start over.' });
       return;
@@ -326,11 +335,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     updateState({ isLoading: true, error: null });
 
     try {
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
+      const { error } = await supabase.auth.signInWithOtp({
         email: state.email,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          shouldCreateUser: state.step === 'verifying_email',
         },
       });
 
@@ -339,7 +347,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       updateState({ isLoading: false });
     } catch (error: any) {
       updateState({ 
-        error: error.message || 'Failed to resend email', 
+        error: error.message || 'Failed to resend code', 
         isLoading: false 
       });
       throw error;
@@ -375,15 +383,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider
       value={{
         ...state,
-        signUp,
-        verifyEmail,
+        signUpWithEmail,
+        verifyEmailOTP,
+        setPassword,
         signIn,
         signInWithGoogle,
         requestPasswordReset,
         verifyResetOTP,
         resetPassword,
         signOut,
-        resendVerificationEmail,
+        resendOTP,
         clearError,
         setStep,
         setEmail,

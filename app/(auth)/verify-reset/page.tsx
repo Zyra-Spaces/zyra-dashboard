@@ -11,7 +11,7 @@ export default function VerifyResetPage() {
   const router = useRouter();
   const { 
     verifyResetOTP, 
-    resendOTP, 
+    requestPasswordReset,
     isLoading, 
     error, 
     clearError, 
@@ -64,10 +64,10 @@ export default function VerifyResetPage() {
   };
 
   const handleResend = async () => {
-    if (!canResend) return;
+    if (!canResend || !email) return;
 
     try {
-      await resendOTP();
+      await requestPasswordReset(email);
       toast.success("Reset code resent!");
       setCountdown(60);
       setCanResend(false);
@@ -138,4 +138,3 @@ export default function VerifyResetPage() {
     </AuthLayout>
   );
 }
-

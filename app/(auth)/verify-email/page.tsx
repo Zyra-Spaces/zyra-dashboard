@@ -10,12 +10,13 @@ import { toast } from "react-toastify";
 export default function VerifyEmailPage() {
   const router = useRouter();
   const { 
-    verifyEmail, 
-    resendVerificationEmail, 
+    verifyEmailOTP, 
+    resendOTP, 
     isLoading, 
     error, 
     clearError, 
-    email 
+    email,
+    step 
   } = useAuth();
   const [otp, setOtp] = useState("");
   const [countdown, setCountdown] = useState(60);
@@ -27,6 +28,13 @@ export default function VerifyEmailPage() {
       router.push("/register");
     }
   }, [email, router]);
+
+  // Redirect to set password when email is verified
+  useEffect(() => {
+    if (step === 'setting_password') {
+      router.push("/set-password");
+    }
+  }, [step, router]);
 
   // Countdown timer for resend
   useEffect(() => {
@@ -48,7 +56,7 @@ export default function VerifyEmailPage() {
     }
 
     try {
-      await verifyEmail(otp);
+      await verifyEmailOTP(otp);
       toast.success("Email verified successfully!");
     } catch (err: any) {
       toast.error(err.message || "Verification failed");
@@ -59,7 +67,7 @@ export default function VerifyEmailPage() {
     if (!canResend) return;
 
     try {
-      await resendVerificationEmail();
+      await resendOTP();
       toast.success("Verification code resent!");
       setCountdown(60);
       setCanResend(false);

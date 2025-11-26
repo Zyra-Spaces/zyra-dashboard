@@ -68,7 +68,7 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
             >
               {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
@@ -78,7 +78,7 @@ export default function LoginPage() {
         <div className="flex items-center justify-end animate-fade-in animate-delay-300">
           <Link
             href="/forgot-password"
-            className="text-xs text-[#4780C6] hover:underline transition-colors"
+            className="text-xs text-[#4780C6] hover:underline transition-colors cursor-pointer"
           >
             Forgot password?
           </Link>
@@ -101,7 +101,7 @@ export default function LoginPage() {
 
       <p className="animate-fade-in animate-delay-600 text-center mt-6 text-gray-600 text-sm">
         Don&apos;t have an account?{" "}
-        <Link href="/register" className="text-[#4780C6] hover:underline font-medium">
+        <Link href="/register" className="text-[#4780C6] hover:underline font-medium cursor-pointer">
           Sign up
         </Link>
       </p>

@@ -16,7 +16,7 @@ const passwordRequirements = [
 
 export default function SetPasswordPage() {
   const router = useRouter();
-  const { setPassword, isLoading, error, clearError, user, step } = useAuth();
+  const { setPassword, isLoading, error, clearError, step, user } = useAuth();
   const [password, setPasswordValue] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -24,7 +24,7 @@ export default function SetPasswordPage() {
 
   // Redirect if not in the right step
   useEffect(() => {
-    if (!user && step !== 'setting_password') {
+    if (!user || step !== 'setting_password') {
       router.push("/register");
     }
   }, [user, step, router]);
@@ -48,7 +48,7 @@ export default function SetPasswordPage() {
 
     try {
       await setPassword(password);
-      toast.success("Password set successfully!");
+      toast.success("Account created successfully!");
     } catch (err: any) {
       toast.error(err.message || "Failed to set password");
     }

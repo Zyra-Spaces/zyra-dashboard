@@ -6,7 +6,7 @@ import Link from "next/link";
 // --- ICONS ---
 
 const ZyraLogo = () => (
-  <Link href="/" className="flex items-center gap-3">
+  <Link href="/" className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
     <svg width="32" height="31" viewBox="0 0 32 31" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path d="M6.4 0H25.8462V8.32929H25.8797L11.7873 22.6707H32V31H0V22.6707H0.212553L14.3049 8.32929H6.4V0Z" fill="#4780C6"/>
     </svg>
@@ -87,7 +87,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
         <div className="animate-fade-in animate-delay-700">
           <div className="flex items-center justify-between text-xs text-gray-500">
             <span>© Zyra Spaces 2025</span>
-            <a href="mailto:help@zyraspaces.com" className="flex items-center gap-2 hover:text-gray-700 transition-colors">
+            <a href="mailto:help@zyraspaces.com" className="flex items-center gap-2 hover:text-gray-700 transition-colors cursor-pointer">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
@@ -151,14 +151,14 @@ interface AuthInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 
 export const AuthInput: React.FC<AuthInputProps> = ({ label, error, className = "", ...props }) => (
   <div className="animate-fade-in">
-    <label className="block text-xs font-medium text-gray-700 mb-2">
+    <label className="block text-xs font-medium text-gray-700 mb-2 cursor-default">
       {label}
     </label>
     <input
       {...props}
-      className={`w-full px-4 py-3 border ${error ? 'border-red-400' : 'border-gray-200'} rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4780C6] focus:border-transparent transition-all text-gray-900 placeholder-gray-400 text-xs ${className}`}
+      className={`w-full px-4 py-3 border ${error ? 'border-red-400' : 'border-gray-200'} rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4780C6] focus:border-transparent transition-all text-gray-900 placeholder-gray-400 text-xs cursor-text ${className}`}
     />
-    {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
+    {error && <p className="text-red-500 text-xs mt-1 cursor-default">{error}</p>}
   </div>
 );
 
@@ -176,10 +176,10 @@ export const AuthButton: React.FC<AuthButtonProps> = ({
   disabled,
   ...props 
 }) => {
-  const baseClasses = "w-full font-medium py-3 rounded-lg transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed";
+  const baseClasses = "w-full font-medium py-3 rounded-lg transition-all text-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]";
   const variantClasses = variant === 'primary' 
-    ? "bg-[#4780C6] hover:bg-[#3A6FB5] text-white"
-    : "border border-gray-200 hover:bg-gray-50 text-gray-700";
+    ? "bg-[#4780C6] hover:bg-[#3A6FB5] active:bg-[#2F5A94] text-white"
+    : "border border-gray-200 hover:bg-gray-50 active:bg-gray-100 text-gray-700";
 
   return (
     <button
@@ -210,7 +210,7 @@ export const GoogleButton: React.FC<GoogleButtonProps> = ({ onClick, text = "Sig
   <button
     type="button"
     onClick={onClick}
-    className="w-full flex items-center justify-center gap-3 border border-gray-200 rounded-lg py-3 hover:bg-gray-50 transition-colors text-gray-700 font-medium text-sm"
+    className="w-full flex items-center justify-center gap-3 border border-gray-200 rounded-lg py-3 hover:bg-gray-50 active:bg-gray-100 transition-all text-gray-700 font-medium text-sm cursor-pointer active:scale-[0.98]"
   >
     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 48 48">
       <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" />
@@ -277,7 +277,7 @@ export const OTPInput: React.FC<OTPInputProps> = ({ length = 6, value, onChange,
             onChange={(e) => handleChange(index, e)}
             onKeyDown={(e) => handleKeyDown(index, e)}
             onPaste={handlePaste}
-            className={`w-12 h-14 text-center text-xl font-semibold border ${error ? 'border-red-400' : 'border-gray-200'} rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4780C6] focus:border-transparent transition-all`}
+            className={`w-12 h-14 text-center text-xl font-semibold border ${error ? 'border-red-400' : 'border-gray-200'} rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4780C6] focus:border-transparent transition-all cursor-text`}
           />
         ))}
       </div>
