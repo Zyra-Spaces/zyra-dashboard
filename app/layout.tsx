@@ -26,15 +26,18 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${montserrat.className} antialiased`}>
         <ToastContainer
-          position="top-center"
-          autoClose={5000}
-          hideProgressBar={false}
-          newestOnTop={false}
-          closeOnClick={false}
+          position="bottom-right"
+          autoClose={4000}
+          hideProgressBar
+          newestOnTop
+          closeOnClick
           rtl={false}
-          pauseOnFocusLoss
-          draggable
+          pauseOnFocusLoss={false}
+          draggable={false}
           pauseOnHover
+          theme="light"
+          limit={3}
+          icon={false}
         />
         <QueryProvider>
           <AuthProvider>{children}</AuthProvider>

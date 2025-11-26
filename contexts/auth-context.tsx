@@ -100,19 +100,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [supabase.auth, updateState]);
 
   // Sign Up with Email (sends OTP, no password yet)
+  // Uses Supabase's secure signUp() method which handles existing users gracefully
+  // without revealing whether a user exists (prevents email enumeration)
   const signUpWithEmail = async (email: string) => {
     updateState({ isLoading: true, error: null, step: 'signing_up' });
     
     try {
-      const { error } = await supabase.auth.signInWithOtp({
+      // Generate a temporary secure password (user will set their own after email verification)
+      const tempPassword = crypto.randomUUID() + crypto.randomUUID();
+      
+      // Use signUp() - Supabase handles existing users securely:
+      // - If user doesn't exist: creates user and sends confirmation email
+      // - If user exists: sends login email (no indication to client that user existed)
+      const { data, error } = await supabase.auth.signUp({
         email,
+        password: tempPassword, // Temporary password, user will set their own after verification
         options: {
-          shouldCreateUser: true,
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        // Only show actual errors, not user existence (security feature)
+        throw error;
+      }
 
+      // signUp() returns user data even if user existed (security feature)
+      // We proceed with verification flow regardless
       updateState({ 
         email, 
         step: 'verifying_email', 
@@ -129,6 +143,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Verify Email OTP
+  // When using signUp(), Supabase sends confirmation with type 'signup'
+  // If user already exists, Supabase handles it securely by sending login email
+  // We use 'signup' type since we're in the signup flow
   const verifyEmailOTP = async (token: string) => {
     if (!state.email) {
       updateState({ error: 'Email not found. Please start over.' });
@@ -138,20 +155,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     updateState({ isLoading: true, error: null });
 
     try {
+      // Verify OTP with 'signup' type (for new user signups)
+      // If user existed and got login email instead, they should use login flow
       const { data, error } = await supabase.auth.verifyOtp({
         email: state.email,
         token: token,
-        type: 'email',
+        type: 'signup',
       });
 
       if (error) throw error;
 
       // User verified, now needs to set password
-      updateState({ 
-        user: data.user, 
-        step: 'setting_password', 
-        isLoading: false 
-      });
+      if (data?.user) {
+        updateState({ 
+          user: data.user, 
+          step: 'setting_password', 
+          isLoading: false 
+        });
+      } else {
+        throw new Error('Verification failed');
+      }
     } catch (error: any) {
       updateState({ 
         error: error.message || 'Invalid verification code', 
@@ -335,10 +358,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     updateState({ isLoading: true, error: null });
 
     try {
-      const { error } = await supabase.auth.signInWithOtp({
+      // Use signUp() again for resending - Supabase handles it securely
+      const tempPassword = crypto.randomUUID() + crypto.randomUUID();
+      
+      const { error } = await supabase.auth.signUp({
         email: state.email,
+        password: tempPassword,
         options: {
-          shouldCreateUser: state.step === 'verifying_email',
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
 

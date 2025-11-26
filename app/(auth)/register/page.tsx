@@ -34,8 +34,8 @@ export default function RegisterPage() {
   };
 
   return (
-    <AuthLayout heroImageSrc="/images/banner-2.png">
-      <h1 className="text-4xl font-light text-gray-900 mb-8 animate-fade-in animate-delay-100">
+    <AuthLayout>
+      <h1 className="text-4xl font-medium text-gray-900 mb-8 animate-fade-in animate-delay-100">
         Sign up
       </h1>
 

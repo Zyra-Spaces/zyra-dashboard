@@ -33,8 +33,8 @@ export default function LoginPage() {
   };
 
   return (
-    <AuthLayout heroImageSrc="/images/banner-1.png">
-      <h1 className="text-4xl font-light text-gray-900 mb-8 animate-fade-in animate-delay-100">
+    <AuthLayout>
+      <h1 className="text-4xl font-medium text-gray-900 mb-8 animate-fade-in animate-delay-100">
         Log in
       </h1>
 

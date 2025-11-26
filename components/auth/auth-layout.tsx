@@ -1,7 +1,8 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { getRandomBanner, getRandomText, getDifferentBanner, BANNER_TEXTS } from "@/lib/banners";
 
 // --- ICONS ---
 
@@ -66,9 +67,34 @@ interface AuthLayoutProps {
 
 export const AuthLayout: React.FC<AuthLayoutProps> = ({
   children,
-  heroImageSrc = "/images/banner-1.png",
+  heroImageSrc,
   showArrow = true,
 }) => {
+  const [currentBanner, setCurrentBanner] = useState<string>(heroImageSrc || getRandomBanner());
+  const [currentText, setCurrentText] = useState(getRandomText());
+  const [isChanging, setIsChanging] = useState(false);
+  const [activeStep, setActiveStep] = useState(0);
+
+  // Initialize with random banner and text on mount
+  useEffect(() => {
+    if (!heroImageSrc) {
+      setCurrentBanner(getRandomBanner());
+      setCurrentText(getRandomText());
+    }
+    // Set random active step on mount
+    setActiveStep(Math.floor(Math.random() * 4));
+  }, [heroImageSrc]);
+
+  const changeBanner = (stepIndex: number) => {
+    setIsChanging(true);
+    setActiveStep(stepIndex);
+    setTimeout(() => {
+      setCurrentBanner(getDifferentBanner(currentBanner));
+      setCurrentText(BANNER_TEXTS[Math.floor(Math.random() * BANNER_TEXTS.length)]);
+      setIsChanging(false);
+    }, 300);
+  };
+
   return (
     <div className="h-screen w-screen flex overflow-hidden bg-white relative">
       {/* Left Column - Form */}
@@ -108,9 +134,9 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
       <div className="hidden lg:block flex-1 relative overflow-hidden">
         {/* Background Image */}
         <img
-          src={heroImageSrc}
+          src={currentBanner}
           alt="Modern building"
-          className="absolute inset-0 w-full h-full object-cover"
+          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${isChanging ? 'opacity-0' : 'opacity-100'}`}
         />
         
         {/* Gradient Overlay */}
@@ -122,20 +148,52 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
             <SparkleIcon />
           </div>
 
-          <h2 className="text-4xl lg:text-5xl font-bold leading-tight mb-4 animate-fade-in animate-delay-400">
-            Start turning your<br />ideas into reality.
+          <h2 className={`text-4xl lg:text-5xl font-bold leading-tight mb-4 transition-opacity duration-300 ${isChanging ? 'opacity-0' : 'opacity-100'}`}>
+            {currentText.headline.split('\n').map((line, i) => (
+              <React.Fragment key={i}>
+                {line}
+                {i < currentText.headline.split('\n').length - 1 && <br />}
+              </React.Fragment>
+            ))}
           </h2>
 
-          <p className="text-lg text-gray-200 mb-8 animate-fade-in animate-delay-500">
-            Create a free account and get full access to all features for 30-days. No credit card needed. Get started in 2 minutes.
+          <p className={`text-lg text-gray-200 mb-8 transition-opacity duration-300 ${isChanging ? 'opacity-0' : 'opacity-100'}`}>
+            {currentText.description}
           </p>
 
-          <div className="flex items-center gap-6 animate-fade-in animate-delay-600">
+          <div className="flex items-center gap-6 mb-6 animate-fade-in animate-delay-600">
             <UserAvatars />
             <div>
               <StarRating />
               <p className="text-sm text-gray-300 mt-1">from 200+ reviews</p>
             </div>
+          </div>
+
+          {/* Banner Switches */}
+          <div className="flex items-center gap-2">
+            {[1, 2, 3, 4].map((index) => (
+              <button
+                key={index}
+                onClick={changeBanner}
+                className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-sm border border-white/30 flex items-center justify-center transition-all cursor-pointer active:scale-95 group"
+                aria-label={`Switch to different banner`}
+                title="Switch banner"
+              >
+                <svg
+                  className="w-5 h-5 text-white group-hover:rotate-180 transition-transform duration-300"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
+                </svg>
+              </button>
+            ))}
           </div>
         </div>
       </div>

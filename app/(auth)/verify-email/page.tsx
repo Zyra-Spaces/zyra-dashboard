@@ -78,7 +78,7 @@ export default function VerifyEmailPage() {
   };
 
   return (
-    <AuthLayout heroImageSrc="/images/banner-2.png" showArrow={false}>
+    <AuthLayout showArrow={false}>
       <div className="text-center">
         <div className="w-16 h-16 bg-[#4780C6]/10 rounded-full flex items-center justify-center mx-auto mb-6 animate-fade-in">
           <svg className="w-8 h-8 text-[#4780C6]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -86,7 +86,7 @@ export default function VerifyEmailPage() {
           </svg>
         </div>
 
-        <h1 className="text-3xl font-light text-gray-900 mb-2 animate-fade-in animate-delay-100">
+        <h1 className="text-3xl font-medium text-gray-900 mb-2 animate-fade-in animate-delay-100">
           Check your email
         </h1>
         
