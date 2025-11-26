@@ -169,30 +169,63 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
             </div>
           </div>
 
-          {/* Banner Switches */}
-          <div className="flex items-center gap-2">
-            {[1, 2, 3, 4].map((index) => (
-              <button
-                key={index}
-                onClick={changeBanner}
-                className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-sm border border-white/30 flex items-center justify-center transition-all cursor-pointer active:scale-95 group"
-                aria-label={`Switch to different banner`}
-                title="Switch banner"
-              >
-                <svg
-                  className="w-5 h-5 text-white group-hover:rotate-180 transition-transform duration-300"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+          {/* Banner Step Indicators - Full Width */}
+          <div className="w-full flex items-center justify-between px-4">
+            {[0, 1, 2, 3].map((stepIndex) => (
+              <div key={stepIndex} className="flex items-center flex-1">
+                <button
+                  onClick={() => changeBanner(stepIndex)}
+                  className="relative group cursor-pointer focus:outline-none flex-shrink-0"
+                  aria-label={`Switch to banner ${stepIndex + 1}`}
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  />
-                </svg>
-              </button>
+                  {/* Step Circle - Smaller Size */}
+                  <div
+                    className={`relative w-7 h-7 rounded-full border-2 transition-all duration-700 ease-in-out ${
+                      activeStep === stepIndex
+                        ? 'border-white bg-white/25 scale-110 shadow-lg shadow-white/20'
+                        : 'border-white/50 bg-white/10 hover:bg-white/15 hover:border-white/70 hover:scale-105'
+                    }`}
+                  >
+                    {/* Active Glow Effect */}
+                    {activeStep === stepIndex && (
+                      <>
+                        <div className="absolute inset-0 rounded-full bg-white/30 animate-pulse" />
+                        <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white/40 to-transparent" />
+                      </>
+                    )}
+                    
+                    {/* Inner Dot with smooth animation - Smaller */}
+                    <div
+                      className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full transition-all duration-700 ease-in-out ${
+                        activeStep === stepIndex
+                          ? 'w-2 h-2 bg-white shadow-md'
+                          : 'w-1.5 h-1.5 bg-white/70 group-hover:w-1.75 group-hover:h-1.75'
+                      }`}
+                    />
+                    
+                    {/* Ripple Animation on Active - Smaller */}
+                    {activeStep === stepIndex && (
+                      <div className="absolute inset-0 rounded-full bg-white/10 animate-ping" style={{ animationDuration: '2s' }} />
+                    )}
+                  </div>
+                </button>
+                
+                {/* Connecting Line (between steps) - Longer */}
+                {stepIndex < 3 && (
+                  <div className="relative flex-1 h-0.5 mx-3">
+                    {/* Line Background */}
+                    <div className="absolute inset-0 bg-white/20 rounded-full" />
+                    {/* Animated Progress Line */}
+                    <div
+                      className={`absolute inset-0 bg-white rounded-full transition-all duration-700 ease-in-out origin-left ${
+                        activeStep > stepIndex
+                          ? 'scale-x-100 opacity-100'
+                          : 'scale-x-0 opacity-0'
+                      }`}
+                    />
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         </div>
