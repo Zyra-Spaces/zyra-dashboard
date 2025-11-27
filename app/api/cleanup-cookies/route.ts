@@ -14,58 +14,17 @@ export async function POST() {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
+    // Remove ALL metadata - keep cookies minimal (only auth tokens)
+    // All profile data should be in localStorage only
     const metadata = user.user_metadata || {};
     const cleaned: Record<string, any> = {};
 
-    // Only keep essential, small fields (max 100 chars each)
-    const allowedFields = [
-      "first_name",
-      "last_name",
-      "username",
-      "date_of_birth",
-      "gender",
-      "occupation",
-      "referral_source",
-    ];
-
-    // Copy allowed small fields only
-    for (const field of allowedFields) {
-      if (metadata[field] !== undefined) {
-        const value = metadata[field];
-        if (typeof value === "string" && value.length <= 100) {
-          cleaned[field] = value;
-        } else if (value === null || value === "") {
-          cleaned[field] = null;
-        }
-      }
-    }
-
-    // Bio - only if very short
-    if (metadata.bio && typeof metadata.bio === "string" && metadata.bio.length <= 50) {
-      cleaned.bio = metadata.bio;
-    }
-
-    // Remove all large data from metadata:
-    // - Images (profile_pic, banner_pic)
-    // - Arrays (team_emails)
-    // - Objects (socials)
-    // These should be in localStorage only
-
-    // Update full_name
-    if (cleaned.first_name || cleaned.last_name) {
-      if (cleaned.first_name && cleaned.last_name) {
-        cleaned.full_name = `${cleaned.first_name} ${cleaned.last_name}`;
-      } else {
-        cleaned.full_name = cleaned.first_name || cleaned.last_name;
-      }
-    }
-
-    // Only update if there are changes
-    const hasChanges = JSON.stringify(cleaned) !== JSON.stringify(metadata);
+    // Only update if there are changes (if metadata has any data)
+    const hasChanges = Object.keys(metadata).length > 0;
     
     if (hasChanges) {
       const { error } = await supabase.auth.updateUser({
-        data: cleaned,
+        data: cleaned, // Empty metadata
       });
       
       if (error) {

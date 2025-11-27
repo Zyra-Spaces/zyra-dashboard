@@ -15,24 +15,68 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          );
-          supabaseResponse = NextResponse.next({
-            request,
+          // CRITICAL: Only set cookies if they're actually different
+          // This prevents Supabase from writing duplicate cookies
+          const existingCookies = request.cookies.getAll();
+          const cookiesToUpdate: typeof cookiesToSet = [];
+          
+          cookiesToSet.forEach(({ name, value, options }) => {
+            const existing = existingCookies.find(c => c.name === name);
+            // Only set if value changed or cookie doesn't exist
+            if (!existing || existing.value !== value) {
+              cookiesToUpdate.push({ name, value, options });
+            }
           });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          );
+          
+          // Only update if there are actual changes
+          if (cookiesToUpdate.length > 0) {
+            cookiesToUpdate.forEach(({ name, value }) =>
+              request.cookies.set(name, value)
+            );
+            supabaseResponse = NextResponse.next({
+              request,
+            });
+            cookiesToUpdate.forEach(({ name, value, options }) =>
+              supabaseResponse.cookies.set(name, value, options)
+            );
+          }
         },
       },
     }
   );
 
-  // Refresh the session if it exists
+  // Get user - but don't force refresh if session is valid
+  // Only refresh if absolutely necessary to reduce cookie writes
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  
+  // Clean up duplicate/old Supabase cookies to prevent accumulation
+  const allCookies = request.cookies.getAll();
+  const supabaseCookies = allCookies.filter(c => c.name.startsWith('sb-'));
+  
+  // Supabase should only have 2 cookies max:
+  // 1. sb-{project}-auth-token
+  // 2. sb-{project}-auth-token.0 (if using chunked storage)
+  // If more exist, delete old ones
+  if (supabaseCookies.length > 2) {
+    // Sort by name to keep the most recent ones
+    const sortedCookies = [...supabaseCookies].sort((a, b) => 
+      b.name.localeCompare(a.name)
+    );
+    const cookiesToKeep = sortedCookies.slice(0, 2);
+    const cookiesToDelete = sortedCookies.slice(2);
+    
+    cookiesToDelete.forEach(cookie => {
+      supabaseResponse.cookies.delete(cookie.name);
+      supabaseResponse.cookies.set(cookie.name, "", {
+        expires: new Date(0),
+        path: "/",
+        maxAge: 0,
+        domain: undefined,
+      });
+    });
+  }
 
   // Auth routes that don't require authentication
   const authRoutes = [
@@ -85,9 +129,9 @@ export async function updateSession(request: NextRequest) {
   );
 
   if (user && isBasicAuthRoute) {
-    // Redirect authenticated users to onboarding (no checks)
+    // Redirect authenticated users to dashboard (they can access onboarding manually if needed)
     const url = request.nextUrl.clone();
-    url.pathname = "/onboarding/details";
+    url.pathname = "/dashboard";
     return NextResponse.redirect(url);
   }
 

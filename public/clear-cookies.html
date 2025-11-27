@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Clear Supabase Cookies</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    button {
+      background: #4780C6;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 10px 5px;
+    }
+    button:hover {
+      background: #3a6ba5;
+    }
+    .info {
+      background: #e3f2fd;
+      padding: 15px;
+      border-radius: 6px;
+      margin: 20px 0;
+    }
+    .success {
+      background: #e8f5e9;
+      color: #2e7d32;
+      padding: 15px;
+      border-radius: 6px;
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Clear Supabase Cookies</h1>
+    <div class="info">
+      <p>If you're experiencing <strong>HTTP ERROR 431</strong>, it's because Supabase cookies are too large.</p>
+      <p>Click the button below to clear all Supabase cookies, then refresh your app.</p>
+    </div>
+    
+    <button onclick="clearCookies()">Clear All Supabase Cookies</button>
+    <button onclick="clearAllCookies()">Clear ALL Cookies (Nuclear Option)</button>
+    
+    <div id="result"></div>
+    
+    <script>
+      function clearCookies() {
+        const resultDiv = document.getElementById('result');
+        resultDiv.innerHTML = '<p>Clearing cookies...</p>';
+        
+        // Get all cookies
+        const cookies = document.cookie.split(';');
+        let cleared = 0;
+        
+        cookies.forEach(cookie => {
+          const name = cookie.split('=')[0].trim();
+          // Clear Supabase cookies (sb-*)
+          if (name.startsWith('sb-') || name.includes('supabase')) {
+            // Clear with various paths
+            document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+            document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=localhost;`;
+            document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=.localhost;`;
+            cleared++;
+          }
+        });
+        
+        resultDiv.innerHTML = `
+          <div class="success">
+            <strong>Success!</strong> Cleared ${cleared} Supabase cookie(s).
+            <br><br>
+            <a href="/login" style="color: #4780C6; text-decoration: underline;">Go to Login</a>
+          </div>
+        `;
+      }
+      
+      function clearAllCookies() {
+        if (!confirm('Are you sure you want to clear ALL cookies? This will log you out.')) {
+          return;
+        }
+        
+        const resultDiv = document.getElementById('result');
+        resultDiv.innerHTML = '<p>Clearing all cookies...</p>';
+        
+        // Get all cookies
+        const cookies = document.cookie.split(';');
+        let cleared = 0;
+        
+        cookies.forEach(cookie => {
+          const name = cookie.split('=')[0].trim();
+          // Clear all cookies
+          document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+          document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=localhost;`;
+          document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=.localhost;`;
+          cleared++;
+        });
+        
+        resultDiv.innerHTML = `
+          <div class="success">
+            <strong>Success!</strong> Cleared ${cleared} cookie(s).
+            <br><br>
+            <a href="/login" style="color: #4780C6; text-decoration: underline;">Go to Login</a>
+          </div>
+        `;
+      }
+      
+      // Auto-detect and show Supabase cookies on load
+      window.onload = function() {
+        const cookies = document.cookie.split(';');
+        const supabaseCookies = cookies.filter(c => 
+          c.trim().startsWith('sb-') || c.includes('supabase')
+        );
+        
+        if (supabaseCookies.length > 0) {
+          document.getElementById('result').innerHTML = `
+            <div class="info">
+              <strong>Found ${supabaseCookies.length} Supabase cookie(s)</strong>
+              <ul style="margin: 10px 0; padding-left: 20px;">
+                ${supabaseCookies.map(c => `<li>${c.split('=')[0].trim()}</li>`).join('')}
+              </ul>
+            </div>
+          `;
+        }
+      };
+    </script>
+  </div>
+</body>
+</html>
+

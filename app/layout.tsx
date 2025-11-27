@@ -4,6 +4,7 @@ import "./globals.css";
 import { QueryProvider } from "@/providers/query-provider";
 import { AuthProvider } from "@/contexts/auth-context";
 import { CleanupOnMount } from "@/components/cleanup-on-mount";
+import { ClearCookiesOnMount } from "@/components/clear-cookies-on-mount";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -43,6 +44,7 @@ export default function RootLayout({
         <QueryProvider>
           <AuthProvider>
             <CleanupOnMount />
+            <ClearCookiesOnMount />
             {children}
           </AuthProvider>
         </QueryProvider>

@@ -73,38 +73,6 @@ export async function saveUserProfile(profile: Partial<UserProfile>) {
   return { success: true };
 }
 
-  // Optionally save to profiles table if it exists
-  // This is disabled by default - user metadata is sufficient
-  // Uncomment below if you create a profiles table in Supabase
-  /*
-  try {
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .upsert({
-        id: user.id,
-        first_name: profile.firstName,
-        last_name: profile.lastName,
-        username: profile.username,
-        date_of_birth: profile.dateOfBirth,
-        gender: profile.gender,
-        profile_pic: profile.profilePic,
-        banner_pic: profile.bannerPic,
-        team_emails: profile.teamEmails,
-        socials: profile.socials,
-        updated_at: new Date().toISOString(),
-      });
-
-    if (profileError) {
-      console.warn("Profile table error:", profileError);
-    }
-  } catch (error) {
-    // Table might not exist, that's fine
-  }
-  */
-
-  return { success: true };
-}
-
 // Get user profile - ONLY from localStorage
 // Do not read from Supabase metadata to avoid cookie issues
 export async function getUserProfileFromSupabase() {

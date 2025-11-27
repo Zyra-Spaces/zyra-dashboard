@@ -12,10 +12,20 @@ export function CleanupOnMount() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      // Clean up metadata immediately on mount
-      fetch("/api/cleanup-cookies", { method: "POST" }).catch(() => {
-        // Silent fail
-      });
+      // Clean up metadata immediately on mount - remove ALL profile data from cookies
+      // Run cleanup multiple times to ensure it works
+      const cleanup = async () => {
+        try {
+          await fetch("/api/cleanup-cookies", { method: "POST" });
+          // Run again after short delay to ensure cleanup
+          setTimeout(() => {
+            fetch("/api/cleanup-cookies", { method: "POST" }).catch(() => {});
+          }, 1000);
+        } catch {
+          // Silent fail
+        }
+      };
+      cleanup();
     }
   }, [isAuthenticated]);
 

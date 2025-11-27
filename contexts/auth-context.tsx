@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { isOnboardingComplete } from '@/lib/onboarding';
@@ -62,7 +62,10 @@ const initialState: AuthState = {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>(initialState);
   const router = useRouter();
-  const supabase = createClient();
+  
+  // CRITICAL: Use useMemo to ensure client is created only once
+  // Creating client on every render causes cookie accumulation
+  const supabase = useMemo(() => createClient(), []);
 
   // Helper to update state
   const updateState = useCallback((updates: Partial<AuthState>) => {
@@ -261,7 +264,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Ignore
       }
       
-      // Directly redirect to onboarding after password setup - no checks
+      // After password setup, go to onboarding (new user flow)
       router.push('/onboarding/details');
     } catch (error: any) {
       updateState({ 
