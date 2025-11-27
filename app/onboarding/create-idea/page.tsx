@@ -36,7 +36,13 @@ export default function OnboardingCreateIdeaPage() {
       
       toast.success("First project created! Welcome to Zyra Spaces!");
       
-      // Don't auto-redirect - let user stay on page or navigate manually
+      // Reset loading state
+      setIsLoading(false);
+      
+      // Navigate to dashboard after short delay
+      setTimeout(() => {
+        router.push("/dashboard");
+      }, 1000);
     } catch (error: any) {
       console.error("Error creating project:", error);
       toast.error(error.message || "Failed to create project");
@@ -104,7 +110,10 @@ export default function OnboardingCreateIdeaPage() {
               type="button"
               onClick={() => {
                 markOnboardingComplete();
-                toast.success("Onboarding skipped. You can complete it later!");
+                toast.success("Welcome to Zyra Spaces!");
+                setTimeout(() => {
+                  router.push("/dashboard");
+                }, 500);
               }}
               className="text-sm text-gray-500 hover:text-gray-700 transition-colors cursor-pointer"
             >
