@@ -48,6 +48,9 @@ export async function updateSession(request: NextRequest) {
   // Protected routes that require authentication
   const protectedRoutes = ["/dashboard"];
 
+  // Onboarding routes (require authentication but are part of setup flow)
+  const onboardingRoutes = ["/onboarding"];
+
   const isAuthRoute = authRoutes.some((route) =>
     request.nextUrl.pathname.startsWith(route)
   );
@@ -56,8 +59,19 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname.startsWith(route)
   );
 
+  const isOnboardingRoute = onboardingRoutes.some((route) =>
+    request.nextUrl.pathname.startsWith(route)
+  );
+
   // Redirect unauthenticated users away from protected routes
   if (!user && isProtectedRoute) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    return NextResponse.redirect(url);
+  }
+
+  // Redirect unauthenticated users away from onboarding
+  if (!user && isOnboardingRoute) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
@@ -71,8 +85,9 @@ export async function updateSession(request: NextRequest) {
   );
 
   if (user && isBasicAuthRoute) {
+    // Redirect authenticated users to onboarding (no checks)
     const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
+    url.pathname = "/onboarding/details";
     return NextResponse.redirect(url);
   }
 

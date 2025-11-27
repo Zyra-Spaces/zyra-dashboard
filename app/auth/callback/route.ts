@@ -5,7 +5,7 @@ export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
   const type = searchParams.get("type");
-  const next = searchParams.get("next") ?? "/dashboard";
+  const next = searchParams.get("next") ?? "/onboarding/details";
 
   if (code) {
     const supabase = await createClient();
@@ -16,7 +16,8 @@ export async function GET(request: Request) {
       if (type === "recovery") {
         return NextResponse.redirect(`${origin}/new-password`);
       }
-      return NextResponse.redirect(`${origin}${next}`);
+      // Always redirect to onboarding after OAuth (no checks)
+      return NextResponse.redirect(`${origin}/onboarding/details`);
     }
   }
 
