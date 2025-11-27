@@ -22,7 +22,8 @@ import {
   Share2,
   CheckCircle2,
   Clock,
-  TrendingUp
+  TrendingUp,
+  Sparkles
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -69,7 +70,7 @@ export default function DashboardPage() {
                     href="/ideator" 
                     className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
                   >
-                    <Settings className="w-4 h-4" />
+                    <Sparkles className="w-4 h-4" />
                     ideator
                     <span className="ml-1 px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">10</span>
                   </Link>

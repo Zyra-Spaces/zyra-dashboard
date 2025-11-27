@@ -50,6 +50,15 @@ export default function IdeatorPage() {
       const data = await response.json();
 
       if (!response.ok) {
+        // Handle rate limit errors with retry info
+        if (response.status === 429) {
+          const retryAfter = data.retryAfter;
+          throw new Error(
+            retryAfter 
+              ? `Rate limit exceeded. Please wait ${Math.ceil(retryAfter)} seconds before trying again.`
+              : data.error || 'Rate limit exceeded. Please try again later.'
+          );
+        }
         throw new Error(data.error || 'Failed to generate idea');
       }
 

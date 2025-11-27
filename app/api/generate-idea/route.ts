@@ -55,8 +55,10 @@ Format your response as a structured idea that can be easily parsed. Be creative
       : `Generate a creative project idea based on: ${prompt}`;
 
     // Generate content
+    // Using gemini-2.0-flash which has free tier quota (15 RPM, 1M TPM, 200 RPD)
+    // gemini-2.0-flash-exp has limit: 0 on free tier, so it's not available
     const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash-exp",
+      model: "gemini-2.0-flash",
       contents: fullPrompt,
       config: {
         systemInstruction,
@@ -73,6 +75,20 @@ Format your response as a structured idea that can be easily parsed. Be creative
     });
   } catch (error: any) {
     console.error("Error generating idea:", error);
+    
+    // Handle rate limit errors specifically
+    if (error.status === 429 || error.message?.includes("quota") || error.message?.includes("RESOURCE_EXHAUSTED")) {
+      const retryAfter = error.message?.match(/retry in ([\d.]+)s/)?.[1];
+      return NextResponse.json(
+        { 
+          error: "Rate limit exceeded. Please try again in a moment.",
+          retryAfter: retryAfter ? parseInt(retryAfter) : undefined,
+          details: "The free tier has rate limits. Consider upgrading or waiting before retrying."
+        },
+        { status: 429 }
+      );
+    }
+    
     return NextResponse.json(
       { 
         error: error.message || "Failed to generate idea",
