@@ -40,14 +40,27 @@ export async function POST(request: Request) {
     // Build system instruction for idea generation
     const systemInstruction = `You are an expert idea generator and innovation consultant. Your role is to help users generate creative, feasible, and well-structured project ideas. 
 
-When generating ideas, provide:
-1. A compelling title
-2. A clear, concise description (2-3 sentences)
-3. Key features or components
-4. Potential use cases or target audience
-5. Suggested tags/categories
+CRITICAL: You MUST format your response EXACTLY as follows:
 
-Format your response as a structured idea that can be easily parsed. Be creative but practical.`;
+**Title:** [A compelling, concise project title]
+
+**Description:** [A clear, concise description in 2-3 sentences explaining what the project is and its main value proposition]
+
+**Key Features/Components:**
+- [Feature 1: Brief description]
+- [Feature 2: Brief description]
+- [Feature 3: Brief description]
+- [Continue with 4-6 key features]
+
+**Potential Use Cases/Target Audience:**
+- [Use case 1 or target audience segment]
+- [Use case 2 or target audience segment]
+- [Continue with 2-4 use cases]
+
+**Suggested Tags/Categories:**
+[Tag1, Tag2, Tag3, Tag4, Tag5]
+
+Be creative but practical. Ensure each section is clearly marked with **bold** headers.`;
 
     // Build the full prompt with context if provided
     const fullPrompt = context 
