@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     const apiKey = process.env.GOOGLE_GENAI_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
-        { error: "Gemini API key not configured" },
+        { error: "Gemini API key not configured. Please set GOOGLE_GENAI_API_KEY in your environment variables." },
         { status: 500 }
       );
     }
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Initialize Gemini
+    // Initialize Gemini with API key
     const ai = new GoogleGenAI({ apiKey });
 
     // Build system instruction for idea generation
@@ -54,7 +54,7 @@ Format your response as a structured idea that can be easily parsed. Be creative
       ? `${context}\n\nBased on this context, generate a project idea: ${prompt}`
       : `Generate a creative project idea based on: ${prompt}`;
 
-    // Generate content with streaming
+    // Generate content
     const response = await ai.models.generateContent({
       model: "gemini-2.0-flash-exp",
       contents: fullPrompt,
