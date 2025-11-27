@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { isOnboardingComplete } from "@/lib/onboarding";
+import { Loading } from "@/components/ui/loading";
 
 interface OnboardingGuardProps {
   children: React.ReactNode;
@@ -17,11 +18,7 @@ export function OnboardingGuard({ children, requiredStep }: OnboardingGuardProps
   // No redirects - users can access onboarding even if completed
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#4780C6]"></div>
-      </div>
-    );
+    return <Loading fullScreen />;
   }
 
   if (!isAuthenticated) {

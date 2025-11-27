@@ -29,6 +29,17 @@ export function useProfile() {
           if (supabaseProfile && Object.keys(supabaseProfile).length > 0) {
             setProfile(supabaseProfile);
             setIsLoading(false);
+            
+            // Cleanup metadata in background (remove base64 images if any)
+            try {
+              const { cleanupUserMetadata } = await import("@/lib/supabase/cleanup");
+              cleanupUserMetadata().catch(() => {
+                // Silent fail - cleanup is optional
+              });
+            } catch {
+              // Cleanup not critical
+            }
+            
             return;
           }
         } catch (supabaseError) {

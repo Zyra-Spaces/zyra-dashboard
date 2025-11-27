@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { useAuth } from "@/contexts/auth-context";
 import { useProfile } from "@/hooks/use-profile";
+import { Loading } from "@/components/ui/loading";
 import {
   User,
   Mail,
@@ -57,9 +58,7 @@ export default function ProfilePage() {
   if (isLoading) {
     return (
       <ProtectedRoute>
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#4780C6]"></div>
-        </div>
+        <Loading fullScreen />
       </ProtectedRoute>
     );
   }
@@ -97,7 +96,7 @@ export default function ProfilePage() {
                 </div>
               </div>
               <Link
-                href="/onboarding/details"
+                href="/profile/edit"
                 className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#4780C6] text-white hover:bg-[#3a6db0] transition-colors cursor-pointer text-sm font-medium"
               >
                 <Edit className="w-4 h-4" />
@@ -111,8 +110,11 @@ export default function ProfilePage() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Profile Header Card */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
-            {/* Banner */}
-            <div className="relative h-48 bg-gradient-to-r from-[#4780C6] to-[#6B9FD4]">
+            {/* Banner - Clickable to edit */}
+            <Link 
+              href="/profile/edit?tab=pictures"
+              className="relative h-48 bg-gradient-to-r from-[#4780C6] to-[#6B9FD4] block group cursor-pointer"
+            >
               {profile?.bannerPic ? (
                 <img
                   src={profile.bannerPic}
@@ -124,13 +126,23 @@ export default function ProfilePage() {
                   <Camera className="w-12 h-12 text-white/30" />
                 </div>
               )}
-            </div>
+              {/* Hover overlay */}
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                <div className="flex items-center gap-2 text-white text-sm font-medium">
+                  <Camera className="w-5 h-5" />
+                  Edit Banner
+                </div>
+              </div>
+            </Link>
 
             {/* Profile Info */}
             <div className="relative px-6 pb-6">
-              {/* Profile Picture */}
-              <div className="absolute -top-16 left-6">
-                <div className="w-32 h-32 rounded-full border-4 border-white bg-gray-100 overflow-hidden shadow-lg">
+              {/* Profile Picture - Clickable to edit */}
+              <Link 
+                href="/profile/edit?tab=pictures"
+                className="absolute -top-16 left-6 group cursor-pointer"
+              >
+                <div className="w-32 h-32 rounded-full border-4 border-white bg-gray-100 overflow-hidden shadow-lg relative">
                   {profile?.profilePic ? (
                     <img
                       src={profile.profilePic}
@@ -142,8 +154,12 @@ export default function ProfilePage() {
                       <User className="w-12 h-12 text-white" />
                     </div>
                   )}
+                  {/* Hover overlay */}
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 rounded-full">
+                    <Camera className="w-6 h-6 text-white" />
+                  </div>
                 </div>
-              </div>
+              </Link>
 
               {/* Name and Details */}
               <div className="pt-20">
@@ -157,9 +173,22 @@ export default function ProfilePage() {
                         @{profile.username}
                       </p>
                     )}
-                    <div className="flex items-center gap-2 text-gray-500 text-sm mt-2">
-                      <Mail className="w-4 h-4" />
-                      {user?.email}
+                    {profile?.bio && (
+                      <p className="text-gray-600 text-sm mt-2 max-w-md">
+                        {profile.bio}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-4 text-gray-500 text-sm mt-2">
+                      <div className="flex items-center gap-2">
+                        <Mail className="w-4 h-4" />
+                        {user?.email}
+                      </div>
+                      {profile?.occupation && (
+                        <div className="flex items-center gap-1.5 text-gray-500">
+                          <span className="w-1 h-1 bg-gray-300 rounded-full" />
+                          {profile.occupation.charAt(0).toUpperCase() + profile.occupation.slice(1).replace(/-/g, " ")}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -313,7 +342,7 @@ export default function ProfilePage() {
                     href="/onboarding/team"
                     className="text-[#4780C6] text-sm hover:underline mt-2 inline-block cursor-pointer"
                   >
-                    Invite team members
+                    Invite team members →
                   </Link>
                 </div>
               )}
@@ -371,10 +400,10 @@ export default function ProfilePage() {
                   <LinkIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                   <p className="text-gray-500 text-sm">No social links added</p>
                   <Link
-                    href="/onboarding/socials"
+                    href="/profile/edit?tab=socials"
                     className="text-[#4780C6] text-sm hover:underline mt-2 inline-block cursor-pointer"
                   >
-                    Add social links
+                    Add social links →
                   </Link>
                 </div>
               )}
@@ -410,7 +439,7 @@ export default function ProfilePage() {
                     href="/onboarding/create-idea"
                     className="text-[#4780C6] text-sm hover:underline mt-2 inline-block cursor-pointer"
                   >
-                    Create your first idea
+                    Create your first idea →
                   </Link>
                 </div>
               )}

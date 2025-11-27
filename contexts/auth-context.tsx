@@ -88,12 +88,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
         updateState({
           user: session?.user ?? null,
           isAuthenticated: !!session?.user,
           isLoading: false,
         });
+
+        // Clean up metadata on sign in to reduce cookie size
+        if (event === "SIGNED_IN" && session?.user) {
+          try {
+            // Call cleanup API in background (non-blocking)
+            fetch("/api/cleanup-cookies", { method: "POST" }).catch(() => {
+              // Silent fail - cleanup is optional
+            });
+          } catch {
+            // Ignore errors
+          }
+        }
 
         // Don't auto-redirect on SIGNED_IN - let users stay where they are
         // Users will be redirected to onboarding from the auth flows (signIn, setPassword, etc.)

@@ -8,6 +8,7 @@ import { OnboardingGuard } from "@/components/onboarding/onboarding-guard";
 import { AuthButton } from "@/components/auth/auth-layout";
 import { InlineNotification, notify } from "@/components/ui/inline-notification";
 import { saveUserProfile } from "@/lib/supabase/profile";
+import { uploadImage } from "@/lib/supabase/storage";
 import { useAuth } from "@/contexts/auth-context";
 
 export default function OnboardingProfilePicturesPage() {
@@ -54,22 +55,48 @@ export default function OnboardingProfilePicturesPage() {
     setIsLoading(true);
 
     try {
-      // Save URLs to localStorage for preview
-      if (profilePic) {
+      let profilePicUrl: string | undefined;
+      let bannerPicUrl: string | undefined;
+
+      // Upload images to storage if they're base64 (not already URLs)
+      if (profilePic && !profilePic.startsWith("http")) {
+        try {
+          profilePicUrl = await uploadImage(profilePic, "profile");
+          localStorage.setItem("onboarding_profile_pic", profilePicUrl);
+        } catch (uploadError) {
+          console.warn("Could not upload profile pic to storage:", uploadError);
+          // Store base64 in localStorage only (not in metadata)
+          localStorage.setItem("onboarding_profile_pic", profilePic);
+        }
+      } else if (profilePic) {
+        profilePicUrl = profilePic;
         localStorage.setItem("onboarding_profile_pic", profilePic);
       }
-      if (bannerPic) {
+
+      if (bannerPic && !bannerPic.startsWith("http")) {
+        try {
+          bannerPicUrl = await uploadImage(bannerPic, "banner");
+          localStorage.setItem("onboarding_banner_pic", bannerPicUrl);
+        } catch (uploadError) {
+          console.warn("Could not upload banner pic to storage:", uploadError);
+          // Store base64 in localStorage only (not in metadata)
+          localStorage.setItem("onboarding_banner_pic", bannerPic);
+        }
+      } else if (bannerPic) {
+        bannerPicUrl = bannerPic;
         localStorage.setItem("onboarding_banner_pic", bannerPic);
       }
 
-      // Try to save to Supabase (skip if storage not configured)
-      try {
-        await saveUserProfile({
-          profilePic: profilePic || undefined,
-          bannerPic: bannerPic || undefined,
-        });
-      } catch (saveError) {
-        console.warn("Could not save to Supabase, continuing anyway:", saveError);
+      // Only save URLs to Supabase metadata (never base64)
+      if (profilePicUrl || bannerPicUrl) {
+        try {
+          await saveUserProfile({
+            profilePic: profilePicUrl,
+            bannerPic: bannerPicUrl,
+          });
+        } catch (saveError) {
+          console.warn("Could not save to Supabase metadata:", saveError);
+        }
       }
 
       notify.success("Pictures saved!");
