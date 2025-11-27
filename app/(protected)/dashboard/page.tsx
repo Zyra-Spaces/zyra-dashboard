@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { ProtectedRoute } from '@/components/auth/protected-route';
 import { useAuth } from '@/contexts/auth-context';
 import { useProfile } from '@/hooks/use-profile';
 import { isOnboardingComplete, getOnboardingProgress } from '@/lib/onboarding';
-import { LogOut, User, Shield, Key, Lock, Mail, Calendar, Users, Sparkles, Lightbulb, AlertCircle, ArrowRight } from 'lucide-react';
+import { LogOut, User, Shield, Key, Lock, Mail, Calendar, Users, Sparkles, Lightbulb, AlertCircle, ArrowRight, UserCircle } from 'lucide-react';
 import { toast } from 'react-toastify';
 
 export default function DashboardPage() {
@@ -84,10 +85,21 @@ export default function DashboardPage() {
                 <h1 className="text-xl font-semibold text-gray-900">Zyra Spaces</h1>
               </div>
               <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <User className="w-4 h-4" />
-                  <span>{user?.email}</span>
-                </div>
+                <Link
+                  href="/profile"
+                  className="flex items-center gap-2 text-sm text-gray-600 hover:text-[#4780C6] transition-colors cursor-pointer"
+                >
+                  {profile?.profilePic ? (
+                    <img 
+                      src={profile.profilePic} 
+                      alt="Profile" 
+                      className="w-8 h-8 rounded-full object-cover"
+                    />
+                  ) : (
+                    <UserCircle className="w-8 h-8" />
+                  )}
+                  <span className="hidden sm:inline">{user?.email}</span>
+                </Link>
                 <button
                   onClick={handleLogout}
                   disabled={isLoading}

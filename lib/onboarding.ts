@@ -8,6 +8,9 @@ export interface UserProfile {
   dateOfBirth?: string;
   gender?: string;
   username?: string;
+  bio?: string;
+  occupation?: string;
+  referralSource?: string;
   profilePic?: string;
   bannerPic?: string;
   teamEmails?: string[];
@@ -56,7 +59,15 @@ export function getUserProfile(): UserProfile | null {
     const profile: UserProfile = {};
 
     if (details) {
-      Object.assign(profile, JSON.parse(details));
+      const detailsData = JSON.parse(details);
+      profile.firstName = detailsData.firstName;
+      profile.lastName = detailsData.lastName;
+      profile.username = detailsData.username;
+      profile.dateOfBirth = detailsData.dateOfBirth;
+      profile.gender = detailsData.gender;
+      profile.bio = detailsData.bio;
+      profile.occupation = detailsData.occupation;
+      profile.referralSource = detailsData.referralSource;
     }
 
     if (profilePic) profile.profilePic = profilePic;

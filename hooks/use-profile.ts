@@ -53,7 +53,33 @@ export function useProfile() {
       }
     };
 
-    loadProfile();
+    loadProfile().then(() => {
+      // Merge localStorage data after loading from Supabase
+      if (typeof window !== 'undefined') {
+        const firstIdeaStr = localStorage.getItem('onboarding_first_idea');
+        const teamStr = localStorage.getItem('onboarding_team');
+        const detailsStr = localStorage.getItem('onboarding_details');
+        const socialsStr = localStorage.getItem('onboarding_socials');
+        
+        setProfile(prev => {
+          if (!prev) return prev;
+          const firstIdea = firstIdeaStr ? JSON.parse(firstIdeaStr) : undefined;
+          const teamEmails = teamStr ? JSON.parse(teamStr) : undefined;
+          const details = detailsStr ? JSON.parse(detailsStr) : {};
+          const socials = socialsStr ? JSON.parse(socialsStr) : undefined;
+          
+          return {
+            ...prev,
+            bio: prev.bio || details.bio,
+            occupation: prev.occupation || details.occupation,
+            referralSource: prev.referralSource || details.referralSource,
+            firstIdea: prev.firstIdea || firstIdea,
+            teamEmails: prev.teamEmails?.length ? prev.teamEmails : teamEmails,
+            socials: prev.socials || socials,
+          };
+        });
+      }
+    });
   }, [user, isAuthenticated]);
 
   const updateProfile = async (updates: Partial<UserProfile>) => {

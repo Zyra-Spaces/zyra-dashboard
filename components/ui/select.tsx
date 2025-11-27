@@ -59,7 +59,7 @@ export const Select: React.FC<SelectProps> = ({
   return (
     <div className="relative">
       {label && (
-        <label className="block text-xs font-medium text-gray-700 mb-2 cursor-default">
+        <label className="block text-xs font-medium text-gray-700 mb-1 cursor-default">
           {label}
         </label>
       )}
@@ -81,9 +81,9 @@ export const Select: React.FC<SelectProps> = ({
         <button
           type="button"
           onClick={() => setIsOpen(!isOpen)}
-          className={`w-full px-4 py-3 border ${
+          className={`w-full px-3 py-2 border ${
             error ? "border-red-400" : "border-gray-200"
-          } rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4780C6] focus:border-transparent transition-all text-gray-900 text-xs cursor-pointer bg-white flex items-center justify-between ${
+          } rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4780C6] focus:border-transparent transition-all text-gray-900 text-sm cursor-pointer bg-white flex items-center justify-between ${
             isOpen ? "ring-2 ring-[#4780C6] border-transparent" : ""
           } ${className}`}
         >
@@ -100,13 +100,13 @@ export const Select: React.FC<SelectProps> = ({
         {/* Dropdown menu */}
         {isOpen && (
           <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-            <div className="py-1 max-h-60 overflow-auto">
+            <div className="py-1 max-h-48 overflow-auto">
               {options.map((option) => (
                 <button
                   key={option.value}
                   type="button"
                   onClick={() => handleSelect(option.value)}
-                  className={`w-full px-4 py-2.5 text-left text-xs transition-colors cursor-pointer ${
+                  className={`w-full px-3 py-2 text-left text-sm transition-colors cursor-pointer ${
                     props.value === option.value
                       ? "bg-[#4780C6]/10 text-[#4780C6] font-medium"
                       : "text-gray-900 hover:bg-gray-50"

@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Lightbulb } from "lucide-react";
+import { Lightbulb, Rocket } from "lucide-react";
 import { OnboardingLayout } from "@/components/onboarding/onboarding-layout";
 import { OnboardingGuard } from "@/components/onboarding/onboarding-guard";
-import { AuthInput, AuthButton } from "@/components/auth/auth-layout";
+import { AuthButton } from "@/components/auth/auth-layout";
+import { InlineNotification, notify } from "@/components/ui/inline-notification";
 import { markOnboardingComplete } from "@/lib/onboarding";
-import { toast } from "react-toastify";
 
 export default function OnboardingCreateIdeaPage() {
   const router = useRouter();
@@ -22,147 +22,113 @@ export default function OnboardingCreateIdeaPage() {
     setIsLoading(true);
 
     if (!formData.title.trim()) {
-      toast.error("Please enter a project title");
+      notify.error("Please enter a project title");
       setIsLoading(false);
       return;
     }
 
     try {
-      // Save to localStorage
       localStorage.setItem("onboarding_first_idea", JSON.stringify(formData));
-      
-      // Mark onboarding as complete
       markOnboardingComplete();
       
-      toast.success("First project created! Welcome to Zyra Spaces!");
-      
-      // Reset loading state
+      notify.success("Welcome to Zyra Spaces!");
       setIsLoading(false);
       
-      // Navigate to dashboard after short delay
       setTimeout(() => {
         router.push("/dashboard");
       }, 1000);
     } catch (error: any) {
       console.error("Error creating project:", error);
-      toast.error(error.message || "Failed to create project");
+      notify.error("Failed to create project");
       setIsLoading(false);
     }
+  };
+
+  const handleSkip = () => {
+    markOnboardingComplete();
+    notify.success("Welcome to Zyra Spaces!");
+    setTimeout(() => {
+      router.push("/dashboard");
+    }, 500);
   };
 
   return (
     <OnboardingGuard>
       <OnboardingLayout currentStep={5}>
-        <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-100">
-          {/* Icon */}
-          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Lightbulb className="w-8 h-8 text-gray-400" />
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 max-h-[calc(100vh-120px)] overflow-hidden">
+          {/* Notification */}
+          <InlineNotification className="mb-4" />
+
+          {/* Header - Compact */}
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+              <Lightbulb className="w-5 h-5 text-amber-500" />
+            </div>
+            <div>
+              <h1 className="text-xl font-medium text-gray-900">Create Your First Idea</h1>
+              <p className="text-xs text-gray-500">Start your first project and bring your ideas to life</p>
+            </div>
           </div>
 
-          {/* Title */}
-          <h1 className="text-3xl font-medium text-gray-900 text-center mb-2">
-            Create Your First Idea
-          </h1>
-          <p className="text-sm text-gray-500 text-center mb-8">
-            Start your first project and bring your ideas to life
-          </p>
-
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <AuthInput
-              label="Project Title*"
-              name="title"
-              type="text"
-              placeholder="Enter your project title"
-              required
-              value={formData.title}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, title: e.target.value }))
-              }
-            />
-
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-2">
-                Description
-              </label>
-              <textarea
-                name="description"
-                placeholder="Describe your project..."
-                rows={4}
-                value={formData.description}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, description: e.target.value }))
-                }
-                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4780C6] focus:border-transparent transition-all text-gray-900 placeholder-gray-400 text-xs resize-none"
+              <label className="block text-xs font-medium text-gray-700 mb-1">Project Title*</label>
+              <input
+                type="text"
+                placeholder="My Awesome Project"
+                required
+                value={formData.title}
+                onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4780C6] focus:border-transparent text-gray-900 placeholder-gray-400 text-sm"
               />
             </div>
 
-            <div className="pt-4">
-              <AuthButton type="submit" isLoading={isLoading}>
-                Create Project
-              </AuthButton>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
+              <textarea
+                placeholder="What's your project about?"
+                rows={3}
+                value={formData.description}
+                onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4780C6] focus:border-transparent text-gray-900 placeholder-gray-400 text-sm resize-none"
+              />
             </div>
+
+            {/* Submit */}
+            <AuthButton type="submit" isLoading={isLoading}>
+              <Rocket className="w-4 h-4 mr-2" />
+              Launch Project
+            </AuthButton>
           </form>
 
-          {/* Skip Option */}
-          <div className="mt-4 text-center">
-            <button
-              type="button"
-              onClick={() => {
-                markOnboardingComplete();
-                toast.success("Welcome to Zyra Spaces!");
-                setTimeout(() => {
-                  router.push("/dashboard");
-                }, 500);
-              }}
-              className="text-sm text-gray-500 hover:text-gray-700 transition-colors cursor-pointer"
-            >
-              Skip for now
-            </button>
-          </div>
-
-          {/* Back Link */}
-          <div className="mt-6 text-center">
+          {/* Navigation */}
+          <div className="mt-4 flex items-center justify-between">
             <button
               type="button"
               onClick={() => router.back()}
-              className="text-sm text-gray-500 hover:text-gray-700 transition-colors cursor-pointer inline-flex items-center gap-1"
+              className="text-xs text-gray-500 hover:text-gray-700 transition-colors cursor-pointer inline-flex items-center gap-1"
             >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
-                />
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
               Back
             </button>
+            <button
+              type="button"
+              onClick={handleSkip}
+              className="text-xs text-gray-500 hover:text-gray-700 transition-colors cursor-pointer"
+            >
+              Skip & Go to Dashboard
+            </button>
           </div>
 
-          {/* Pagination Dots */}
-          <div className="flex justify-center gap-2 mt-8">
-            {[1, 2, 3, 4, 5].map((step) => (
-              <div
-                key={step}
-                className={`w-2 h-2 rounded-full transition-all ${
-                  step === 5
-                    ? "bg-[#4780C6] w-6"
-                    : step < 5
-                    ? "bg-[#4780C6]"
-                    : "bg-gray-200"
-                }`}
-              />
-            ))}
+          {/* Celebration Graphic */}
+          <div className="mt-4 pt-4 border-t border-gray-100 text-center">
+            <p className="text-xs text-gray-400">🎉 You're almost done! This is the final step.</p>
           </div>
         </div>
       </OnboardingLayout>
     </OnboardingGuard>
   );
 }
-

@@ -115,8 +115,8 @@ export const OnboardingLayout: React.FC<OnboardingLayoutProps> = ({
         </div>
 
         {/* Steps */}
-        <div className="flex-1 p-8">
-          <div className="relative">
+        <div className="flex-1 p-6 overflow-hidden">
+          <div className="relative space-y-1">
             {steps.map((step, index) => {
               const isActive = step.id === currentStep;
               const isCompleted = isStepCompleted(step.id);
@@ -165,7 +165,7 @@ export const OnboardingLayout: React.FC<OnboardingLayoutProps> = ({
                       {/* Connecting Line */}
                       {!isLast && (
                         <div
-                          className={`absolute top-10 left-1/2 -translate-x-1/2 w-0.5 h-16 transition-colors ${
+                          className={`absolute top-10 left-1/2 -translate-x-1/2 w-0.5 h-12 transition-colors ${
                             isCompleted || isActive
                               ? "border-l-2 border-dashed border-[#4780C6]"
                               : "border-l-2 border-dashed border-gray-200"
@@ -226,7 +226,7 @@ export const OnboardingLayout: React.FC<OnboardingLayoutProps> = ({
       </div>
 
       {/* Right Content Area */}
-      <div className="flex-1 bg-gray-50 relative overflow-auto">
+      <div className="flex-1 bg-gray-50 relative overflow-hidden">
         {/* Grid Pattern Overlay */}
         <div
           className="absolute inset-0 opacity-[0.02]"
@@ -240,10 +240,8 @@ export const OnboardingLayout: React.FC<OnboardingLayoutProps> = ({
         />
         
         {/* Content */}
-        <div className="relative z-10 min-h-full flex flex-col">
-          <div className="flex-1 flex items-center justify-center p-8 lg:px-16 lg:py-10">
-            <div className="w-full max-w-2xl">{children}</div>
-          </div>
+        <div className="relative z-10 h-full flex items-center justify-center p-6 lg:p-8">
+          <div className="w-full max-w-lg">{children}</div>
         </div>
       </div>
     </div>
