@@ -5,8 +5,6 @@ import { QueryProvider } from "@/providers/query-provider";
 import { AuthProvider } from "@/contexts/auth-context";
 import { CleanupOnMount } from "@/components/cleanup-on-mount";
 import { ClearCookiesOnMount } from "@/components/clear-cookies-on-mount";
-import { ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
 
 const montserrat = Montserrat({
   variable: "--font-montserrat",
@@ -27,20 +25,6 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${montserrat.className} antialiased`}>
-        <ToastContainer
-          position="bottom-right"
-          autoClose={4000}
-          hideProgressBar
-          newestOnTop
-          closeOnClick
-          rtl={false}
-          pauseOnFocusLoss={false}
-          draggable={false}
-          pauseOnHover
-          theme="light"
-          limit={3}
-          icon={false}
-        />
         <QueryProvider>
           <AuthProvider>
             <CleanupOnMount />

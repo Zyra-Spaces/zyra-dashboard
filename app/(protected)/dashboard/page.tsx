@@ -1,372 +1,453 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ProtectedRoute } from '@/components/auth/protected-route';
 import { useAuth } from '@/contexts/auth-context';
 import { useProfile } from '@/hooks/use-profile';
-import { isOnboardingComplete, getOnboardingProgress } from '@/lib/onboarding';
-import { LogOut, User, Shield, Key, Lock, Mail, Calendar, Users, Sparkles, Lightbulb, AlertCircle, ArrowRight, UserCircle } from 'lucide-react';
-import { toast } from 'react-toastify';
+import { 
+  Home, 
+  Briefcase, 
+  Settings, 
+  Bell, 
+  Zap, 
+  Search, 
+  MoreVertical,
+  FileText,
+  ExternalLink,
+  Star,
+  MessageCircle,
+  Eye,
+  Share2,
+  CheckCircle2,
+  Clock,
+  TrendingUp
+} from 'lucide-react';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user, signOut, isLoading } = useAuth();
-  const { profile, isLoading: profileLoading } = useProfile();
-  const [onboardingComplete, setOnboardingComplete] = useState(true);
-  const [checkingOnboarding, setCheckingOnboarding] = useState(true);
-  const [onboardingProgress, setOnboardingProgress] = useState(getOnboardingProgress());
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const checkStatus = () => {
-        const completed = isOnboardingComplete();
-        setOnboardingComplete(completed);
-        setCheckingOnboarding(false);
-      };
-      
-      const updateStatus = () => {
-        const completed = isOnboardingComplete();
-        const progress = getOnboardingProgress();
-        setOnboardingComplete(completed);
-        setOnboardingProgress(progress);
-        setCheckingOnboarding(false);
-      };
-      
-      updateStatus();
-      
-      // Listen for storage changes (when onboarding is completed in another tab/window)
-      const handleStorageChange = (e: StorageEvent) => {
-        if (e.key?.startsWith('onboarding_')) {
-          updateStatus();
-        }
-      };
-      
-      window.addEventListener('storage', handleStorageChange);
-      
-      // Also check periodically in case onboarding is completed in the same window
-      const interval = setInterval(updateStatus, 2000);
-      
-      return () => {
-        window.removeEventListener('storage', handleStorageChange);
-        clearInterval(interval);
-      };
-    }
-  }, []);
-
-  const handleLogout = async () => {
-    try {
-      await signOut();
-      toast.success('Logged out successfully');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to log out');
-    }
-  };
-
-  const handleCompleteOnboarding = () => {
-    router.push('/onboarding/details');
-  };
+  const { user } = useAuth();
+  const { profile } = useProfile();
 
   const displayName = profile?.firstName && profile?.lastName
     ? `${profile.firstName} ${profile.lastName}`
-    : profile?.firstName || profile?.lastName || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
+    : profile?.firstName || profile?.lastName || user?.email?.split('@')[0] || 'User';
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-gray-50">
-        <nav className="border-b border-gray-200 bg-white shadow-sm">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center h-16">
-              <div className="flex items-center gap-3">
-                <svg width="32" height="31" viewBox="0 0 32 31" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M6.4 0H25.8462V8.32929H25.8797L11.7873 22.6707H32V31H0V22.6707H0.212553L14.3049 8.32929H6.4V0Z" fill="#4780C6"/>
-                </svg>
-                <h1 className="text-xl font-semibold text-gray-900">Zyra Spaces</h1>
+      <div className="min-h-screen bg-white">
+        {/* Top Header */}
+        <header className="border-b border-gray-200 bg-white sticky top-0 z-50">
+          <div className="max-w-[1920px] mx-auto px-6">
+            <div className="flex items-center justify-between h-16">
+              {/* Left: Logo + Navigation */}
+              <div className="flex items-center gap-8">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-[#4780C6] rounded flex items-center justify-center">
+                    <span className="text-white font-bold text-lg">Z</span>
+                  </div>
+                  <span className="text-xl font-semibold text-gray-900">Zyra</span>
+                </div>
+                
+                <nav className="flex items-center gap-6">
+                  <Link 
+                    href="/dashboard" 
+                    className="flex items-center gap-2 text-sm font-medium text-[#4780C6] hover:text-[#4780C6]/80 transition-colors"
+                  >
+                    <Home className="w-4 h-4" />
+                    Home
+                  </Link>
+                  <Link 
+                    href="/workspaces" 
+                    className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                  >
+                    <Briefcase className="w-4 h-4" />
+                    Workspaces
+                  </Link>
+                  <Link 
+                    href="/ideator" 
+                    className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                  >
+                    <Settings className="w-4 h-4" />
+                    ideator
+                    <span className="ml-1 px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">10</span>
+                  </Link>
+                </nav>
               </div>
+
+              {/* Right: Actions + Profile */}
               <div className="flex items-center gap-4">
-                <Link
-                  href="/profile"
-                  className="flex items-center gap-2 text-sm text-gray-600 hover:text-[#4780C6] transition-colors cursor-pointer"
-                >
-                  {profile?.profilePic ? (
-                    <img 
-                      src={profile.profilePic} 
-                      alt="Profile" 
-                      className="w-8 h-8 rounded-full object-cover"
-                    />
-                  ) : (
-                    <UserCircle className="w-8 h-8" />
-                  )}
-                  <span className="hidden sm:inline">{user?.email}</span>
-                </Link>
-                <button
-                  onClick={handleLogout}
-                  disabled={isLoading}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500 text-white hover:bg-red-600 active:bg-red-700 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <LogOut className="w-4 h-4" />
-                  {isLoading ? 'Logging out...' : 'Logout'}
+                <button className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg hover:from-purple-600 hover:to-purple-700 transition-all text-sm font-medium">
+                  <Zap className="w-4 h-4" />
+                  Upgrade now
                 </button>
+                <button className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
+                  <Settings className="w-5 h-5" />
+                </button>
+                <button className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors relative">
+                  <Bell className="w-5 h-5" />
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
+                </button>
+                {profile?.profilePic ? (
+                  <img 
+                    src={profile.profilePic} 
+                    alt="Profile" 
+                    className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 cursor-pointer hover:border-[#4780C6] transition-colors"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white font-semibold cursor-pointer">
+                    {displayName.charAt(0).toUpperCase()}
+                  </div>
+                )}
               </div>
             </div>
           </div>
-        </nav>
+        </header>
 
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="grid gap-6">
-            {/* Onboarding Status Banner - Only show if incomplete */}
-            {!checkingOnboarding && !onboardingComplete && (
-              <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-xl p-6 shadow-sm">
-                <div className="flex items-start gap-4">
-                  <div className="flex-shrink-0">
-                    <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center">
-                      <AlertCircle className="w-6 h-6 text-amber-600" />
+        {/* Main Content - Three Column Layout */}
+        <div className="max-w-[1920px] mx-auto px-6 py-6">
+          <div className="grid grid-cols-12 gap-6">
+            {/* Left Sidebar */}
+            <aside className="col-span-3 space-y-6">
+              {/* Search Bar */}
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Find the next idea"
+                  className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4780C6] focus:border-transparent text-sm"
+                />
+              </div>
+
+              {/* Featured Profile Card */}
+              <div className="bg-gradient-to-br from-pink-500/20 via-purple-500/20 to-blue-500/20 rounded-xl p-6 relative overflow-hidden">
+                <div className="absolute inset-0 bg-[url('/images/banners/1.png')] opacity-10 bg-cover bg-center"></div>
+                <div className="relative">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      {profile?.profilePic ? (
+                        <div className="relative">
+                          <img 
+                            src={profile.profilePic} 
+                            alt="Profile" 
+                            className="w-16 h-16 rounded-full object-cover border-4 border-white shadow-lg"
+                          />
+                          <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center border-2 border-white">
+                            <CheckCircle2 className="w-3 h-3 text-white" />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white font-semibold text-xl border-4 border-white shadow-lg">
+                          {displayName.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div>
+                        <h3 className="font-semibold text-gray-900">{displayName}</h3>
+                        <div className="flex items-center gap-1 mt-1">
+                          <span className="text-xs text-gray-600">•</span>
+                          <span className="text-xs font-medium text-purple-600">Premium</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-lg font-semibold text-amber-900">
-                        Complete Your Onboarding
-                      </h3>
-                      <span className="px-3 py-1 bg-amber-200 text-amber-800 text-xs font-medium rounded-full">
-                        Incomplete
-                      </span>
-                    </div>
-                    <p className="text-sm text-amber-700 mb-4">
-                      Your profile setup is incomplete. Complete your onboarding to unlock all features and personalize your experience.
-                    </p>
-                    
-                    {/* Progress Indicator */}
-                    <div className="mb-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-medium text-amber-800">
-                          Progress: {onboardingProgress.completedSteps} of {onboardingProgress.totalSteps} steps
-                        </span>
-                        <span className="text-xs font-medium text-amber-800">
-                          {Math.round((onboardingProgress.completedSteps / onboardingProgress.totalSteps) * 100)}%
-                        </span>
-                      </div>
-                      <div className="w-full bg-amber-200 rounded-full h-2">
-                        <div
-                          className="bg-amber-600 h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${(onboardingProgress.completedSteps / onboardingProgress.totalSteps) * 100}%` }}
-                        />
-                      </div>
-                      <div className="flex flex-wrap gap-2 mt-3">
-                        {[
-                          { key: 'details', label: 'Details', completed: onboardingProgress.details },
-                          { key: 'profilePictures', label: 'Profile', completed: onboardingProgress.profilePictures },
-                          { key: 'team', label: 'Team', completed: onboardingProgress.team },
-                          { key: 'socials', label: 'Socials', completed: onboardingProgress.socials },
-                          { key: 'firstIdea', label: 'First Idea', completed: onboardingProgress.firstIdea },
-                        ].map((step) => (
-                          <div
-                            key={step.key}
-                            className={`px-2 py-1 rounded text-xs font-medium ${
-                              step.completed
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-amber-100 text-amber-700'
-                            }`}
-                          >
-                            {step.completed ? '✓' : '○'} {step.label}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    <button
-                      onClick={handleCompleteOnboarding}
-                      className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 active:bg-amber-800 transition-all cursor-pointer font-medium text-sm shadow-sm"
-                    >
-                      Complete Onboarding
-                      <ArrowRight className="w-4 h-4" />
+                  <p className="text-sm text-gray-700 mb-4 italic">Perfect Dreamers Don&apos;t Sleep</p>
+                  <div className="flex items-center justify-end">
+                    <span className="text-sm font-medium text-gray-600">2.4k Observers</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Your Stats */}
+              <div className="bg-white border border-gray-200 rounded-xl p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-gray-900">Your Stats</h3>
+                  <button className="p-1 text-gray-400 hover:text-gray-600">
+                    <MoreVertical className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Projects</span>
+                    <span className="font-semibold text-gray-900">23</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Teams</span>
+                    <span className="font-semibold text-gray-900">23</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Ideas</span>
+                    <span className="font-semibold text-gray-900">23</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Trending Topics */}
+              <div className="bg-white border border-gray-200 rounded-xl p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-gray-900">Trending Topics</h3>
+                  <button className="p-1 text-gray-400 hover:text-gray-600">
+                    <MoreVertical className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="space-y-3 mb-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-900">#ai</span>
+                    <span className="text-sm text-gray-500">2.4k</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-900">#efficiency</span>
+                    <span className="text-sm text-gray-500">2.1k</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-900">#automation</span>
+                    <span className="text-sm text-gray-500">1k</span>
+                  </div>
+                </div>
+                <button className="w-full text-sm text-[#4780C6] hover:text-[#4780C6]/80 font-medium">
+                  View all
+                </button>
+              </div>
+            </aside>
+
+            {/* Center Content */}
+            <main className="col-span-6 space-y-6">
+              {/* Jump Back In / Start Afresh */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-lg transition-shadow cursor-pointer">
+                  <div className="h-32 bg-gradient-to-br from-gray-400 to-gray-600 relative">
+                    <img 
+                      src="/images/banners/1.png" 
+                      alt="Project" 
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="p-4">
+                    <h4 className="font-semibold text-gray-900 mb-1">Stone Proof</h4>
+                    <p className="text-xs text-gray-500 mb-3">by Stone Proof Labs</p>
+                    <p className="text-xs text-gray-400 mb-3">2 days ago</p>
+                    <button className="flex items-center gap-2 text-sm text-[#4780C6] hover:text-[#4780C6]/80 font-medium">
+                      <FileText className="w-4 h-4" />
+                      Project Board
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-lg transition-shadow cursor-pointer">
+                  <div className="h-32 bg-gradient-to-br from-gray-400 to-gray-600 relative">
+                    <img 
+                      src="/images/banners/1.png" 
+                      alt="Project" 
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="p-4">
+                    <h4 className="font-semibold text-gray-900 mb-1">Stone Proof</h4>
+                    <p className="text-xs text-gray-500 mb-3">by Stone Proof Labs</p>
+                    <p className="text-xs text-gray-400 mb-3">2 days ago</p>
+                    <button className="flex items-center gap-2 text-sm text-[#4780C6] hover:text-[#4780C6]/80 font-medium">
+                      <Zap className="w-4 h-4" />
+                      New idea
                     </button>
                   </div>
                 </div>
               </div>
-            )}
-            {/* Profile Header */}
-            <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-              <div className="flex items-start gap-6">
-                {profile?.profilePic ? (
-                  <img
-                    src={profile.profilePic}
-                    alt="Profile"
-                    className="w-20 h-20 rounded-full object-cover border-2 border-gray-200"
-                  />
-                ) : (
-                  <div className="w-20 h-20 rounded-full bg-gray-100 border-2 border-gray-200 flex items-center justify-center">
-                    <User className="w-10 h-10 text-gray-400" />
-                  </div>
-                )}
-                <div className="flex-1">
-                  <h2 className="text-xl font-semibold mb-1 text-gray-900">
-                    Welcome, {displayName}! 👋
-                  </h2>
-                  <p className="text-gray-500 mb-4">
-                    You&apos;re now logged into your Zyra Spaces dashboard.
-                  </p>
-                  {profileLoading ? (
-                    <p className="text-sm text-gray-400">Loading profile...</p>
-                  ) : (
-                    <div className="flex flex-wrap gap-4 text-sm">
-                      {profile?.username && (
-                        <div className="flex items-center gap-2 text-gray-600">
-                          <User className="w-4 h-4" />
-                          <span>@{profile.username}</span>
-                        </div>
-                      )}
-                      {user?.email && (
-                        <div className="flex items-center gap-2 text-gray-600">
-                          <Mail className="w-4 h-4" />
-                          <span>{user.email}</span>
-                        </div>
-                      )}
-                      {profile?.dateOfBirth && (
-                        <div className="flex items-center gap-2 text-gray-600">
-                          <Calendar className="w-4 h-4" />
-                          <span>{new Date(profile.dateOfBirth).toLocaleDateString()}</span>
-                        </div>
-                      )}
-                      {profile?.gender && (
-                        <div className="flex items-center gap-2 text-gray-600">
-                          <span className="capitalize">{profile.gender}</span>
-                        </div>
-                      )}
+
+              {/* Main Project Card */}
+              <div className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-lg transition-shadow">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex-1">
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">AI-Powered Crop Disease Detection</h2>
+                    <div className="flex items-center gap-4 text-sm text-gray-600 mb-3">
+                      <div className="flex items-center gap-2">
+                        <Briefcase className="w-4 h-4" />
+                        <span>Bento Team</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span>22 Members</span>
+                      </div>
                     </div>
-                  )}
+                    <span className="inline-flex items-center gap-1 text-sm text-green-600 font-medium">
+                      <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                      Ongoing
+                    </span>
+                  </div>
+                </div>
+
+                <p className="text-gray-600 mb-6">
+                  Using machine learning to help farmers identify crop diseases early and prevent yield loss through mobile app diagnostics.
+                </p>
+
+                {/* Image Previews */}
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div className="bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+                    <div className="aspect-video bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center">
+                      <div className="text-center p-4">
+                        <div className="text-sm font-semibold text-gray-700 mb-2">Banking Dashboard</div>
+                        <div className="text-xs text-gray-500">$40,206.20</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+                    <div className="aspect-video bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center">
+                      <div className="text-center p-4">
+                        <div className="text-sm font-semibold text-gray-700 mb-2">Banking Dashboard</div>
+                        <div className="text-xs text-gray-500">$40,206.20</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between mb-6">
+                  <div className="text-sm text-gray-500">
+                    <span className="font-medium">15th, Oct, 2025</span> – <span className="font-medium">15th, Nov, 2025</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <button className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium">
+                      <FileText className="w-4 h-4" />
+                      Project Board
+                    </button>
+                    <Link href="#" className="flex items-center gap-2 text-sm text-[#4780C6] hover:text-[#4780C6]/80 font-medium">
+                      SRS Doc
+                      <ExternalLink className="w-4 h-4" />
+                    </Link>
+                  </div>
+
+                  <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-1 text-gray-600">
+                        <Star className="w-4 h-4" />
+                        <span className="text-sm font-medium">2.3k</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-gray-600">
+                        <MessageCircle className="w-4 h-4" />
+                        <span className="text-sm font-medium">2.3k</span>
+                      </div>
+                    </div>
+                    <button className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium">
+                      <Eye className="w-4 h-4" />
+                    </button>
+                    <button className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
+                      <Share2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Tags */}
+                <div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-200">
+                  <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-xs font-medium">#ai</span>
+                  <span className="px-3 py-1 bg-green-50 text-green-600 rounded-full text-xs font-medium">#efficiency</span>
+                  <span className="px-3 py-1 bg-purple-50 text-purple-600 rounded-full text-xs font-medium">#automation</span>
                 </div>
               </div>
-            </div>
 
-            {/* Profile Information Cards */}
-            {profile && !profileLoading && (
-              <div className="grid md:grid-cols-2 gap-4">
-                {profile.teamEmails && profile.teamEmails.length > 0 && (
-                  <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-                    <div className="flex items-center gap-3 mb-4">
-                      <Users className="w-5 h-5 text-[#4780C6]" />
-                      <h3 className="font-semibold text-gray-900">Team Members</h3>
-                    </div>
-                    <div className="space-y-2">
-                      {profile.teamEmails.map((email, index) => (
-                        <div key={index} className="text-sm text-gray-600 flex items-center gap-2">
-                          <Mail className="w-4 h-4 text-gray-400" />
-                          <span>{email}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {profile.socials && Object.keys(profile.socials).length > 0 && (
-                  <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-                    <div className="flex items-center gap-3 mb-4">
-                      <Sparkles className="w-5 h-5 text-[#4780C6]" />
-                      <h3 className="font-semibold text-gray-900">Social Accounts</h3>
-                    </div>
-                    <div className="space-y-2">
-                      {profile.socials.twitter && (
-                        <div className="text-sm text-gray-600">
-                          <span className="font-medium">Twitter:</span> {profile.socials.twitter}
-                        </div>
-                      )}
-                      {profile.socials.linkedin && (
-                        <div className="text-sm text-gray-600">
-                          <span className="font-medium">LinkedIn:</span> {profile.socials.linkedin}
-                        </div>
-                      )}
-                      {profile.socials.instagram && (
-                        <div className="text-sm text-gray-600">
-                          <span className="font-medium">Instagram:</span> {profile.socials.instagram}
-                        </div>
-                      )}
-                      {profile.socials.facebook && (
-                        <div className="text-sm text-gray-600">
-                          <span className="font-medium">Facebook:</span> {profile.socials.facebook}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {profile.firstIdea && (
-                  <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm md:col-span-2">
-                    <div className="flex items-center gap-3 mb-4">
-                      <Lightbulb className="w-5 h-5 text-[#4780C6]" />
-                      <h3 className="font-semibold text-gray-900">Your First Idea</h3>
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-gray-900 mb-2">{profile.firstIdea.title}</h4>
-                      {profile.firstIdea.description && (
-                        <p className="text-sm text-gray-600">{profile.firstIdea.description}</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="grid md:grid-cols-3 gap-4">
-              <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow cursor-default">
-                <h3 className="font-semibold mb-2 text-gray-900">User ID</h3>
-                <p className="text-sm text-gray-500 break-all font-mono">{user?.id}</p>
-              </div>
-              <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow cursor-default">
-                <h3 className="font-semibold mb-2 text-gray-900">Email</h3>
-                <p className="text-sm text-gray-500">{user?.email}</p>
-              </div>
-              <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow cursor-default">
-                <h3 className="font-semibold mb-2 text-gray-900">Status</h3>
-                <p className="text-sm text-green-600 flex items-center gap-2">
-                  <Shield className="w-4 h-4" />
-                  Authenticated
+              {/* Additional Project Cards (scrollable) */}
+              <div className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-lg transition-shadow">
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">AI-Powered Crop Disease Detection</h2>
+                <p className="text-gray-600 mb-4">
+                  Using machine learning to help farmers identify crop diseases early and prevent yield loss through mobile app diagnostics.
                 </p>
+                <div className="flex items-center gap-2">
+                  <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-xs font-medium">#ai</span>
+                  <span className="px-3 py-1 bg-green-50 text-green-600 rounded-full text-xs font-medium">#efficiency</span>
+                </div>
               </div>
-            </div>
+            </main>
 
-            <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-              <h3 className="font-semibold mb-4 flex items-center gap-2 text-gray-900">
-                <Lock className="w-5 h-5 text-[#4780C6]" />
-                Security Features
-              </h3>
-              <ul className="space-y-3 text-sm text-gray-500">
-                <li className="flex items-start gap-3">
-                  <Key className="w-4 h-4 mt-0.5 text-green-500 flex-shrink-0" />
-                  <div>
-                    <strong className="text-gray-900">Supabase Auth:</strong> Secure authentication with JWT tokens
+            {/* Right Sidebar */}
+            <aside className="col-span-3 space-y-6">
+              {/* Recent Activity */}
+              <div className="bg-white border border-gray-200 rounded-xl p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-gray-900">Recent activity</h3>
+                  <button className="p-1 text-gray-400 hover:text-gray-600">
+                    <MoreVertical className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="space-y-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex-shrink-0"></div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm font-medium text-gray-900">Phoenix Baker</span>
+                        <span className="text-xs text-gray-400">Just now</span>
+                      </div>
+                      <p className="text-sm text-gray-600">Added a file to Marketing site redesign.</p>
+                      <div className="mt-2 flex items-center gap-2 p-2 bg-red-50 rounded-lg border border-red-100">
+                        <FileText className="w-4 h-4 text-red-600" />
+                        <div>
+                          <p className="text-xs font-medium text-gray-900">Tech requirements.pdf</p>
+                          <p className="text-xs text-gray-500">720 KB</p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </li>
-                <li className="flex items-start gap-3">
-                  <Key className="w-4 h-4 mt-0.5 text-green-500 flex-shrink-0" />
-                  <div>
-                    <strong className="text-gray-900">Next.js Middleware:</strong> Server-side route protection
-                  </div>
-                </li>
-                <li className="flex items-start gap-3">
-                  <Key className="w-4 h-4 mt-0.5 text-green-500 flex-shrink-0" />
-                  <div>
-                    <strong className="text-gray-900">Email Verification:</strong> OTP-based email confirmation
-                  </div>
-                </li>
-                <li className="flex items-start gap-3">
-                  <Key className="w-4 h-4 mt-0.5 text-green-500 flex-shrink-0" />
-                  <div>
-                    <strong className="text-gray-900">Password Reset:</strong> Secure password recovery flow
-                  </div>
-                </li>
-              </ul>
-            </div>
 
-            <div className="bg-gradient-to-r from-[#4780C6]/10 to-blue-500/10 border border-[#4780C6]/20 rounded-xl p-6">
-              <h3 className="font-semibold mb-2 text-[#4780C6]">🎉 Welcome to Zyra Spaces</h3>
-              <p className="text-sm text-gray-600">
-                Your all-in-one project management tool. Start creating projects and collaborating with your team!
-              </p>
-            </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-cyan-400 flex-shrink-0"></div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm font-medium text-gray-900">Demi Wiki</span>
+                        <span className="text-xs text-gray-400">2 mins ago</span>
+                      </div>
+                      <p className="text-sm text-gray-600">Invited Alisa Hester to the team.</p>
+                    </div>
+                  </div>
+                </div>
+                <button className="w-full mt-4 text-sm text-[#4780C6] hover:text-[#4780C6]/80 font-medium">
+                  View full activity
+                </button>
+              </div>
+
+              {/* Top Projects */}
+              <div className="bg-white border border-gray-200 rounded-xl p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-gray-900">Top Projects</h3>
+                  <button className="p-1 text-gray-400 hover:text-gray-600">
+                    <MoreVertical className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="space-y-4">
+                  <div className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow cursor-pointer">
+                    <div className="h-24 bg-gradient-to-br from-gray-400 to-gray-600">
+                      <img 
+                        src="/images/banners/1.png" 
+                        alt="Project" 
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="p-3">
+                      <h4 className="font-semibold text-sm text-gray-900 mb-1">Stone Proof</h4>
+                      <p className="text-xs text-gray-500 mb-1">by Stone Proof Labs</p>
+                      <p className="text-xs text-gray-400">2 days ago</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow cursor-pointer">
+                    <div className="h-24 bg-gradient-to-br from-gray-400 to-gray-600">
+                      <img 
+                        src="/images/banners/1.png" 
+                        alt="Project" 
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="p-3">
+                      <h4 className="font-semibold text-sm text-gray-900 mb-1">Stone Proof</h4>
+                      <p className="text-xs text-gray-500 mb-1">by Patrick Ihirwe</p>
+                      <p className="text-xs text-gray-400">2 days ago</p>
+                    </div>
+                  </div>
+                </div>
+                <button className="w-full mt-4 text-sm text-[#4780C6] hover:text-[#4780C6]/80 font-medium">
+                  View more
+                </button>
+              </div>
+            </aside>
           </div>
-        </main>
+        </div>
       </div>
     </ProtectedRoute>
   );

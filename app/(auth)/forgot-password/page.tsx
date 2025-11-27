@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
 import { AuthLayout, AuthInput, AuthButton } from "@/components/auth/auth-layout";
-import { toast } from "react-toastify";
+import { InlineNotification, notify } from "@/components/ui/inline-notification";
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
@@ -19,10 +19,10 @@ export default function ForgotPasswordPage() {
     try {
       await requestPasswordReset(email);
       setEmail(email);
-      toast.success("Reset code sent to your email!");
+      notify.success("Reset code sent to your email!");
       router.push("/verify-reset");
     } catch (err: any) {
-      toast.error(err.message || "Failed to send reset code");
+      notify.error(err.message || "Failed to send reset code");
     }
   };
 
@@ -44,6 +44,7 @@ export default function ForgotPasswordPage() {
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <InlineNotification className="mb-4" />
           <div className="animate-fade-in animate-delay-300">
             <AuthInput
               label="Email*"

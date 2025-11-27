@@ -5,7 +5,7 @@ import { Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
 import { AuthLayout, AuthInput, AuthButton, GoogleButton } from "@/components/auth/auth-layout";
-import { toast } from "react-toastify";
+import { InlineNotification, notify } from "@/components/ui/inline-notification";
 
 export default function LoginPage() {
   const { signIn, signInWithGoogle, isLoading, error, clearError } = useAuth();
@@ -18,9 +18,9 @@ export default function LoginPage() {
 
     try {
       await signIn(formData.email, formData.password);
-      toast.success("Welcome back!");
+      notify.success("Welcome back! Redirecting...");
     } catch (err: any) {
-      toast.error(err.message || "Login failed");
+      notify.error(err.message || "Login failed");
     }
   };
 
@@ -28,7 +28,7 @@ export default function LoginPage() {
     try {
       await signInWithGoogle();
     } catch (err: any) {
-      toast.error(err.message || "Google sign-in failed");
+      notify.error(err.message || "Google sign-in failed");
     }
   };
 
@@ -39,6 +39,7 @@ export default function LoginPage() {
       </h1>
 
       <form className="space-y-4" onSubmit={handleSubmit}>
+        <InlineNotification className="mb-4" />
         <div className="animate-fade-in animate-delay-200">
           <AuthInput
             label="Email*"

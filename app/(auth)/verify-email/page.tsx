@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
 import { AuthLayout, AuthButton, OTPInput } from "@/components/auth/auth-layout";
-import { toast } from "react-toastify";
+import { InlineNotification, notify } from "@/components/ui/inline-notification";
 
 export default function VerifyEmailPage() {
   const router = useRouter();
@@ -21,6 +21,7 @@ export default function VerifyEmailPage() {
   const [otp, setOtp] = useState("");
   const [countdown, setCountdown] = useState(60);
   const [canResend, setCanResend] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   // Redirect if no email in context
   useEffect(() => {
@@ -36,6 +37,17 @@ export default function VerifyEmailPage() {
     }
   }, [step, router]);
 
+  // Auto-submit when OTP is complete
+  useEffect(() => {
+    if (otp.length === 6 && !isVerifying && !isLoading) {
+      const timer = setTimeout(() => {
+        handleVerify();
+      }, 100); // Small delay to ensure state is updated
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [otp]);
+
   // Countdown timer for resend
   useEffect(() => {
     if (countdown > 0) {
@@ -46,20 +58,24 @@ export default function VerifyEmailPage() {
     }
   }, [countdown]);
 
-  const handleVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleVerify = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     clearError();
 
     if (otp.length !== 6) {
-      toast.error("Please enter a valid 6-digit code");
+      notify.error("Please enter a valid 6-digit code");
       return;
     }
 
+    if (isVerifying || isLoading) return;
+
+    setIsVerifying(true);
     try {
       await verifyEmailOTP(otp);
-      toast.success("Email verified successfully!");
+      notify.success("Email verified successfully! Redirecting...");
     } catch (err: any) {
-      toast.error(err.message || "Verification failed");
+      notify.error(err.message || "Verification failed");
+      setIsVerifying(false);
     }
   };
 
@@ -68,12 +84,12 @@ export default function VerifyEmailPage() {
 
     try {
       await resendOTP();
-      toast.success("Verification code resent!");
+      notify.success("Verification code resent!");
       setCountdown(60);
       setCanResend(false);
       setOtp("");
     } catch (err: any) {
-      toast.error(err.message || "Failed to resend code");
+      notify.error(err.message || "Failed to resend code");
     }
   };
 
@@ -96,6 +112,7 @@ export default function VerifyEmailPage() {
         </p>
 
         <form onSubmit={handleVerify} className="space-y-6">
+          <InlineNotification className="mb-4" />
           <div className="animate-fade-in animate-delay-300">
             <OTPInput
               length={6}
@@ -106,7 +123,7 @@ export default function VerifyEmailPage() {
           </div>
 
           <div className="animate-fade-in animate-delay-400">
-            <AuthButton type="submit" isLoading={isLoading} disabled={otp.length !== 6}>
+            <AuthButton type="submit" isLoading={isLoading || isVerifying} disabled={otp.length !== 6}>
               Verify email
             </AuthButton>
           </div>

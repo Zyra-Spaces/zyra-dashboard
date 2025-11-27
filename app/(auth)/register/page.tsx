@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { AuthLayout, AuthInput, AuthButton, GoogleButton } from "@/components/auth/auth-layout";
-import { toast } from "react-toastify";
+import { InlineNotification, notify } from "@/components/ui/inline-notification";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -18,10 +18,10 @@ export default function RegisterPage() {
 
     try {
       await signUpWithEmail(email);
-      toast.success("Verification code sent to your email!");
+      notify.success("Verification code sent to your email!");
       router.push("/verify-email");
     } catch (err: any) {
-      toast.error(err.message || "Sign up failed");
+      notify.error(err.message || "Sign up failed");
     }
   };
 
@@ -29,7 +29,7 @@ export default function RegisterPage() {
     try {
       await signInWithGoogle();
     } catch (err: any) {
-      toast.error(err.message || "Google sign-up failed");
+      notify.error(err.message || "Google sign-up failed");
     }
   };
 
@@ -40,6 +40,7 @@ export default function RegisterPage() {
       </h1>
 
       <form className="space-y-4" onSubmit={handleSubmit}>
+        <InlineNotification className="mb-4" />
         <div className="animate-fade-in animate-delay-200">
           <AuthInput
             label="Email*"

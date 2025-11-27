@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Check, X } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { AuthLayout, AuthButton } from "@/components/auth/auth-layout";
-import { toast } from "react-toastify";
+import { InlineNotification, notify } from "@/components/ui/inline-notification";
 
 const passwordRequirements = [
   { id: 'length', label: 'At least 8 characters', test: (p: string) => p.length >= 8 },
@@ -37,20 +37,20 @@ export default function NewPasswordPage() {
     clearError();
 
     if (!allRequirementsMet) {
-      toast.error("Please meet all password requirements");
+      notify.error("Please meet all password requirements");
       return;
     }
 
     if (!passwordsMatch) {
-      toast.error("Passwords don't match");
+      notify.error("Passwords don't match");
       return;
     }
 
     try {
       await resetPassword(password);
-      toast.success("Password reset successfully!");
+      notify.success("Password reset successfully! Redirecting to login...");
     } catch (err: any) {
-      toast.error(err.message || "Failed to reset password");
+      notify.error(err.message || "Failed to reset password");
     }
   };
 
@@ -72,6 +72,7 @@ export default function NewPasswordPage() {
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <InlineNotification className="mb-4" />
           <div className="animate-fade-in animate-delay-300">
             <label className="block text-xs font-medium text-gray-700 mb-2">
               New Password*

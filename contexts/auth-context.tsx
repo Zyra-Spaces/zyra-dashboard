@@ -424,8 +424,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading: false,
         email: null
       });
-      // Don't redirect - let user stay on current page or go to onboarding
-      // router.push('/dashboard');
+      
+      // Redirect to login after successful password reset
+      router.push('/login');
     } catch (error: any) {
       updateState({ 
         error: error.message || 'Failed to reset password', 
