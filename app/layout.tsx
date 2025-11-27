@@ -3,6 +3,7 @@ import { Montserrat } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/providers/query-provider";
 import { AuthProvider } from "@/contexts/auth-context";
+import { CleanupOnMount } from "@/components/cleanup-on-mount";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -40,7 +41,10 @@ export default function RootLayout({
           icon={false}
         />
         <QueryProvider>
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            <CleanupOnMount />
+            {children}
+          </AuthProvider>
         </QueryProvider>
       </body>
     </html>

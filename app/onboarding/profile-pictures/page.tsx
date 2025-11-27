@@ -87,17 +87,9 @@ export default function OnboardingProfilePicturesPage() {
         localStorage.setItem("onboarding_banner_pic", bannerPic);
       }
 
-      // Only save URLs to Supabase metadata (never base64)
-      if (profilePicUrl || bannerPicUrl) {
-        try {
-          await saveUserProfile({
-            profilePic: profilePicUrl,
-            bannerPic: bannerPicUrl,
-          });
-        } catch (saveError) {
-          console.warn("Could not save to Supabase metadata:", saveError);
-        }
-      }
+      // Don't save images to Supabase metadata - store in localStorage only
+      // This prevents cookie size issues
+      // Images are already saved to localStorage above
 
       notify.success("Pictures saved!");
       setTimeout(() => {

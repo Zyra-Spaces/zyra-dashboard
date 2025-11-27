@@ -216,8 +216,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // New user or no session - redirect to set password
           router.push('/set-password');
         } else {
-          // Existing user with session - redirect to onboarding (no checks)
-          router.push('/onboarding/details');
+          // Existing user - check if they have onboarding data
+          if (typeof window !== "undefined") {
+            const hasDetails = localStorage.getItem("onboarding_details");
+            router.push(hasDetails ? '/dashboard' : '/onboarding/details');
+          } else {
+            router.push('/dashboard');
+          }
         }
       } else {
         throw new Error('Verification failed');
@@ -246,6 +251,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading: false,
         email: null
       });
+      
+      // Clean up metadata to reduce cookie size
+      try {
+        fetch("/api/cleanup-cookies", { method: "POST" }).catch(() => {
+          // Silent fail
+        });
+      } catch {
+        // Ignore
+      }
       
       // Directly redirect to onboarding after password setup - no checks
       router.push('/onboarding/details');
@@ -277,8 +291,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading: false 
       });
       
-      // Directly redirect to onboarding after login (no checks)
-      router.push('/onboarding/details');
+      // Clean up metadata to reduce cookie size
+      try {
+        fetch("/api/cleanup-cookies", { method: "POST" }).catch(() => {
+          // Silent fail
+        });
+      } catch {
+        // Ignore
+      }
+      
+      // Check if user has onboarding data - if yes, go to dashboard
+      if (typeof window !== "undefined") {
+        const hasDetails = localStorage.getItem("onboarding_details");
+        if (hasDetails) {
+          router.push('/dashboard');
+        } else {
+          router.push('/onboarding/details');
+        }
+      } else {
+        router.push('/dashboard');
+      }
     } catch (error: any) {
       updateState({ 
         error: error.message || 'Invalid email or password', 

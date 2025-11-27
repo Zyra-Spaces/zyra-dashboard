@@ -166,38 +166,33 @@ export default function EditProfilePage() {
         localStorage.setItem("onboarding_banner_pic", formData.bannerPic);
       }
 
+      // Save socials to localStorage only (not metadata)
       const hasSocials = Object.values(formData.socials).some(v => v);
       if (hasSocials) {
         localStorage.setItem("onboarding_socials", JSON.stringify(formData.socials));
+      } else {
+        localStorage.removeItem("onboarding_socials");
       }
 
-      // Prepare profile data - only include URLs in metadata, not base64
+      // Prepare profile data - only small fields go to metadata
+      // Large data (images, arrays, objects) stays in localStorage only
       const profileData: any = {
         firstName: formData.firstName,
         lastName: formData.lastName,
         username: formData.username,
         dateOfBirth: formData.dateOfBirth,
         gender: formData.gender,
-        bio: formData.bio,
+        bio: formData.bio, // Only if short (handled in saveUserProfile)
         occupation: formData.occupation,
         referralSource: formData.referralSource,
-        socials: formData.socials,
+        // DO NOT include in metadata (stored in localStorage only):
+        // - profilePic, bannerPic (images)
+        // - teamEmails (arrays)
+        // - socials (objects)
+        // This prevents cookie size issues
       };
 
-      // Only include image URLs (not base64) in metadata
-      if (formData.profilePic && formData.profilePic.startsWith("http")) {
-        profileData.profilePic = formData.profilePic;
-      } else if (formData.profilePic === "") {
-        profileData.profilePic = null;
-      }
-
-      if (formData.bannerPic && formData.bannerPic.startsWith("http")) {
-        profileData.bannerPic = formData.bannerPic;
-      } else if (formData.bannerPic === "") {
-        profileData.bannerPic = null;
-      }
-
-      // Save to Supabase (only URLs, never base64)
+      // Save to Supabase (only small fields)
       await saveUserProfile(profileData);
 
       setSaveStatus("saved");

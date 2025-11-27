@@ -68,7 +68,9 @@ export default function OnboardingTeamPage() {
           console.warn("Could not send invitations:", inviteError);
         }
         
-        await saveUserProfile({ teamEmails: validEmails });
+        // Don't save team emails to metadata - store in localStorage only
+        // This prevents cookie size issues
+        // Team emails are already saved to localStorage above
       }
       
       setTimeout(() => {
