@@ -28,8 +28,13 @@ export default function OnboardingCreateIdeaPage() {
     }
 
     try {
-      localStorage.setItem("onboarding_first_idea", JSON.stringify(formData));
-      markOnboardingComplete();
+      // Save first idea to database
+      const { saveUserProfile } = await import("@/lib/supabase/profile");
+      await saveUserProfile({
+        firstIdea: formData,
+      });
+      
+      await markOnboardingComplete();
       
       notify.success("Welcome to Zyra Spaces!");
       setIsLoading(false);

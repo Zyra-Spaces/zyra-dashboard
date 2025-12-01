@@ -1,89 +1,148 @@
 import { createClient } from "./client";
+import { requireAuth, checkAuth } from "./auth-guard";
 import type { UserProfile } from "../onboarding";
 
-// Save user profile - STORE EVERYTHING IN LOCALSTORAGE ONLY
-// DO NOT save to Supabase metadata to prevent cookie size issues
-// Only auth tokens should be in cookies
+/**
+ * Save user profile to Supabase database
+ * All profile data is now stored in the user_profiles table
+ */
 export async function saveUserProfile(profile: Partial<UserProfile>) {
-  // Store everything in localStorage only - no metadata updates
-  // This prevents cookie size issues completely
-  
-  if (typeof window === "undefined") {
-    return { success: true };
+  const { user, supabase } = await requireAuth();
+
+  // Prepare update object for database
+  const updateData: any = {};
+
+  if (profile.firstName !== undefined) updateData.first_name = profile.firstName;
+  if (profile.lastName !== undefined) updateData.last_name = profile.lastName;
+  if (profile.username !== undefined) updateData.username = profile.username;
+  // Convert empty string to null for date fields
+  if (profile.dateOfBirth !== undefined) {
+    updateData.date_of_birth = profile.dateOfBirth && profile.dateOfBirth.trim() !== '' 
+      ? profile.dateOfBirth 
+      : null;
+  }
+  if (profile.gender !== undefined) {
+    updateData.gender = profile.gender && profile.gender.trim() !== '' ? profile.gender : null;
+  }
+  if (profile.bio !== undefined) updateData.bio = profile.bio || null;
+  if (profile.occupation !== undefined) {
+    updateData.occupation = profile.occupation && profile.occupation.trim() !== '' ? profile.occupation : null;
+  }
+  if (profile.referralSource !== undefined) {
+    updateData.referral_source = profile.referralSource && profile.referralSource.trim() !== '' ? profile.referralSource : null;
+  }
+  if (profile.profilePic !== undefined) updateData.profile_pic_url = profile.profilePic || null;
+  if (profile.bannerPic !== undefined) updateData.banner_pic_url = profile.bannerPic || null;
+  if (profile.teamEmails !== undefined) updateData.team_emails = profile.teamEmails || [];
+  if (profile.socials !== undefined) updateData.socials = profile.socials || {};
+  if (profile.firstIdea !== undefined) updateData.first_idea = profile.firstIdea || null;
+
+  // Upsert profile (insert or update)
+  const { data, error } = await supabase
+    .from("user_profiles")
+    .upsert({
+      id: user.id,
+      ...updateData,
+      updated_at: new Date().toISOString(),
+    }, {
+      onConflict: 'id'
+    })
+    .select();
+
+  if (error) {
+    console.error("Error saving profile to database:", error);
+    throw new Error(`Failed to save profile: ${error.message}`);
   }
 
-  // Save all data to localStorage
-  if (profile.firstName !== undefined || profile.lastName !== undefined || 
-      profile.username !== undefined || profile.dateOfBirth !== undefined || 
-      profile.gender !== undefined || profile.bio !== undefined ||
-      profile.occupation !== undefined || profile.referralSource !== undefined) {
-    
-    const existingDetails = localStorage.getItem("onboarding_details");
-    const detailsData = existingDetails ? JSON.parse(existingDetails) : {};
-    
-    const updatedDetails = {
-      ...detailsData,
-      ...(profile.firstName !== undefined && { firstName: profile.firstName }),
-      ...(profile.lastName !== undefined && { lastName: profile.lastName }),
-      ...(profile.username !== undefined && { username: profile.username }),
-      ...(profile.dateOfBirth !== undefined && { dateOfBirth: profile.dateOfBirth }),
-      ...(profile.gender !== undefined && { gender: profile.gender }),
-      ...(profile.bio !== undefined && { bio: profile.bio }),
-      ...(profile.occupation !== undefined && { occupation: profile.occupation }),
-      ...(profile.referralSource !== undefined && { referralSource: profile.referralSource }),
-    };
-    
-    localStorage.setItem("onboarding_details", JSON.stringify(updatedDetails));
-  }
-
-  if (profile.profilePic !== undefined) {
-    if (profile.profilePic) {
-      localStorage.setItem("onboarding_profile_pic", profile.profilePic);
-    } else {
-      localStorage.removeItem("onboarding_profile_pic");
-    }
-  }
-
-  if (profile.bannerPic !== undefined) {
-    if (profile.bannerPic) {
-      localStorage.setItem("onboarding_banner_pic", profile.bannerPic);
-    } else {
-      localStorage.removeItem("onboarding_banner_pic");
-    }
-  }
-
-  if (profile.teamEmails !== undefined) {
-    if (profile.teamEmails && profile.teamEmails.length > 0) {
-      localStorage.setItem("onboarding_team", JSON.stringify(profile.teamEmails));
-    } else {
-      localStorage.removeItem("onboarding_team");
-    }
-  }
-
-  if (profile.socials !== undefined) {
-    const hasSocials = Object.values(profile.socials).some(v => v);
-    if (hasSocials) {
-      localStorage.setItem("onboarding_socials", JSON.stringify(profile.socials));
-    } else {
-      localStorage.removeItem("onboarding_socials");
-    }
-  }
-
-  // DO NOT update Supabase metadata - keep cookies minimal (only auth tokens)
   return { success: true };
 }
 
-// Get user profile - ONLY from localStorage
-// Do not read from Supabase metadata to avoid cookie issues
-export async function getUserProfileFromSupabase() {
-  const supabase = createClient();
+/**
+ * Get user profile from Supabase database
+ * Falls back to localStorage for migration purposes
+ */
+export async function getUserProfileFromSupabase(): Promise<UserProfile> {
+  // Use checkAuth instead of requireAuth to avoid throwing if not authenticated
+  // The ProtectedRoute will handle redirecting unauthenticated users
+  const auth = await checkAuth();
   
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  if (userError || !user) throw new Error("User not authenticated");
+  if (!auth) {
+    // Return empty profile if not authenticated (ProtectedRoute will redirect)
+    return {};
+  }
 
-  // Get ALL data from localStorage only (not from metadata)
+  const { user, supabase } = auth;
+
+  // Try to get from database first
+  try {
+    const { data: profileData, error } = await supabase
+      .from("user_profiles")
+      .select(`
+        first_name,
+        last_name,
+        username,
+        date_of_birth,
+        gender,
+        bio,
+        occupation,
+        referral_source,
+        profile_pic_url,
+        banner_pic_url,
+        team_emails,
+        socials,
+        first_idea,
+        onboarding_completed
+      `)
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (error) {
+      // If error is "permission denied" or "not found", try to create profile
+      if (error.code === 'PGRST116' || error.message?.includes('permission denied')) {
+        console.warn("Profile access denied or not found, attempting to create:", error);
+        // Try to create an empty profile record
+        try {
+          const { error: insertError } = await supabase
+            .from("user_profiles")
+            .insert({ id: user.id })
+            .select()
+            .single();
+          
+          if (!insertError) {
+            // Profile created, return empty profile
+            return {};
+          }
+        } catch (createError) {
+          console.warn("Could not create profile:", createError);
+        }
+      }
+      console.warn("Error loading profile from database:", error);
+    } else if (profileData) {
+      // Map database fields to UserProfile interface
+      const profile: UserProfile = {
+        firstName: profileData.first_name,
+        lastName: profileData.last_name,
+        username: profileData.username,
+        dateOfBirth: profileData.date_of_birth,
+        gender: profileData.gender,
+        bio: profileData.bio,
+        occupation: profileData.occupation,
+        referralSource: profileData.referral_source,
+        profilePic: profileData.profile_pic_url,
+        bannerPic: profileData.banner_pic_url,
+        teamEmails: profileData.team_emails as string[],
+        socials: profileData.socials as UserProfile['socials'],
+        firstIdea: profileData.first_idea as UserProfile['firstIdea'],
+      };
+
+      return profile;
+    }
+  } catch (error) {
+    console.warn("Could not load profile from database:", error);
+  }
+
+  // Fallback to localStorage for migration (will be removed later)
   const profile: UserProfile = {};
-
   if (typeof window !== "undefined") {
     try {
       const details = localStorage.getItem("onboarding_details");
@@ -91,6 +150,7 @@ export async function getUserProfileFromSupabase() {
       const bannerPic = localStorage.getItem("onboarding_banner_pic");
       const team = localStorage.getItem("onboarding_team");
       const socials = localStorage.getItem("onboarding_socials");
+      const firstIdea = localStorage.getItem("onboarding_first_idea");
 
       if (details) {
         const detailsData = JSON.parse(details);
@@ -108,39 +168,69 @@ export async function getUserProfileFromSupabase() {
       if (bannerPic) profile.bannerPic = bannerPic;
       if (team) profile.teamEmails = JSON.parse(team);
       if (socials) profile.socials = JSON.parse(socials);
+      if (firstIdea) profile.firstIdea = JSON.parse(firstIdea);
     } catch (error) {
       console.warn("Could not load from localStorage:", error);
     }
   }
 
-  // Optionally get from profiles table if it exists
-  // This is disabled by default - user metadata is sufficient
-  // Uncomment below if you create a profiles table in Supabase
-  /*
-  try {
-    const { data: profileData } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .single();
+  return profile;
+}
 
-    if (profileData) {
-      profile.firstName = profileData.first_name || profile.firstName;
-      profile.lastName = profileData.last_name || profile.lastName;
-      profile.username = profileData.username || profile.username;
-      profile.dateOfBirth = profileData.date_of_birth || profile.dateOfBirth;
-      profile.gender = profileData.gender || profile.gender;
-      profile.profilePic = profileData.profile_pic || profile.profilePic;
-      profile.bannerPic = profileData.banner_pic || profile.bannerPic;
-      profile.teamEmails = profileData.team_emails || profile.teamEmails;
-      profile.socials = profileData.socials || profile.socials;
+/**
+ * Mark onboarding as complete in database
+ */
+export async function markOnboardingComplete() {
+  const { user, supabase } = await requireAuth();
+
+  const { error } = await supabase
+    .from("user_profiles")
+    .update({ onboarding_completed: true })
+    .eq("id", user.id);
+
+  if (error) {
+    console.error("Error marking onboarding complete:", error);
+    throw new Error(`Failed to mark onboarding complete: ${error.message}`);
+  }
+
+  return { success: true };
+}
+
+/**
+ * Check if onboarding is complete
+ */
+export async function isOnboardingComplete(): Promise<boolean> {
+  const auth = await checkAuth();
+  if (!auth) {
+    return false;
+  }
+  
+  const { supabase, user } = auth;
+
+  try {
+    const { data: profileData, error } = await supabase
+      .from("user_profiles")
+      .select("onboarding_completed")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (!error && profileData) {
+      return profileData.onboarding_completed === true;
     }
   } catch (error) {
-    // Table might not exist, use metadata only
+    console.warn("Could not check onboarding status:", error);
   }
-  */
 
-  return profile;
+  // Fallback to localStorage check
+  if (typeof window !== "undefined") {
+    const completed = localStorage.getItem("onboarding_complete");
+    if (completed === "true") return true;
+    
+    const details = localStorage.getItem("onboarding_details");
+    return !!details;
+  }
+
+  return false;
 }
 
 

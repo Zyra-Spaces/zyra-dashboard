@@ -1,10 +1,11 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { User, Image, Users, Sparkles, Lightbulb } from "lucide-react";
 import { Check } from "lucide-react";
+import { useProfile } from "@/hooks/use-profile";
 
 const ZyraLogo = () => (
   <Link href="/" className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
@@ -67,20 +68,20 @@ const steps: Step[] = [
   },
 ];
 
-function isStepCompleted(stepId: number): boolean {
-  if (typeof window === 'undefined') return false;
+function isStepCompleted(stepId: number, profile: any): boolean {
+  if (!profile) return false;
   
   switch (stepId) {
     case 1:
-      return !!localStorage.getItem('onboarding_details');
+      return !!(profile.firstName && profile.lastName && profile.username);
     case 2:
-      return !!(localStorage.getItem('onboarding_profile_pic') || localStorage.getItem('onboarding_banner_pic'));
+      return !!(profile.profilePic || profile.bannerPic);
     case 3:
-      return !!localStorage.getItem('onboarding_team');
+      return !!(profile.teamEmails && profile.teamEmails.length > 0);
     case 4:
-      return !!localStorage.getItem('onboarding_socials');
+      return !!(profile.socials && Object.values(profile.socials).some(v => v));
     case 5:
-      return !!localStorage.getItem('onboarding_first_idea');
+      return !!profile.firstIdea;
     default:
       return false;
   }
@@ -96,11 +97,12 @@ export const OnboardingLayout: React.FC<OnboardingLayoutProps> = ({
   currentStep,
 }) => {
   const router = useRouter();
+  const { profile } = useProfile();
 
   const handleStepClick = (step: Step) => {
     // Only allow navigation to completed steps or the current step
     // Required step (details) must be completed before moving forward
-    if (step.id === 1 || isStepCompleted(step.id - 1) || step.id <= currentStep) {
+    if (step.id === 1 || isStepCompleted(step.id - 1, profile) || step.id <= currentStep) {
       router.push(step.route);
     }
   };
@@ -119,9 +121,9 @@ export const OnboardingLayout: React.FC<OnboardingLayoutProps> = ({
           <div className="relative space-y-1">
             {steps.map((step, index) => {
               const isActive = step.id === currentStep;
-              const isCompleted = isStepCompleted(step.id);
+              const isCompleted = isStepCompleted(step.id, profile);
               const isLast = index === steps.length - 1;
-              const canNavigate = step.id === 1 || isStepCompleted(step.id - 1) || step.id <= currentStep;
+              const canNavigate = step.id === 1 || isStepCompleted(step.id - 1, profile) || step.id <= currentStep;
 
               return (
                 <div key={step.id} className="relative">

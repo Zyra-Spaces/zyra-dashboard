@@ -23,39 +23,36 @@ export function useProfile() {
         setIsLoading(true);
         setError(null);
 
-        // Try to get from Supabase first
+        // Try to get from Supabase database first
         try {
           const supabaseProfile = await getUserProfileFromSupabase();
-          if (supabaseProfile && Object.keys(supabaseProfile).length > 0) {
-            setProfile(supabaseProfile);
+          // Even if profile is empty, set it (user might not have filled profile yet)
+          setProfile(supabaseProfile || {});
+          setIsLoading(false);
+          return;
+        } catch (supabaseError: any) {
+          console.warn("Could not load from database, trying localStorage fallback:", supabaseError);
+          // If it's an auth error, don't try localStorage - let ProtectedRoute handle it
+          if (supabaseError?.message?.includes('not authenticated') || supabaseError?.message?.includes('Session expired')) {
             setIsLoading(false);
-            
-            // Cleanup metadata in background (remove base64 images if any)
-            try {
-              const { cleanupUserMetadata } = await import("@/lib/supabase/cleanup");
-              cleanupUserMetadata().catch(() => {
-                // Silent fail - cleanup is optional
-              });
-            } catch {
-              // Cleanup not critical
-            }
-            
             return;
           }
-        } catch (supabaseError) {
-          console.warn("Could not load from Supabase, trying localStorage:", supabaseError);
         }
 
-        // Fallback to localStorage
-        const localProfile = getLocalProfile();
-        if (localProfile) {
-          setProfile(localProfile);
-          // Sync to Supabase in background
-          try {
-            await saveUserProfile(localProfile);
-          } catch (syncError) {
-            console.warn("Could not sync to Supabase:", syncError);
+        // Fallback to localStorage for migration (one-time sync)
+        try {
+          const localProfile = await getLocalProfile();
+          if (localProfile) {
+            setProfile(localProfile);
+            // Sync to database in background
+            try {
+              await saveUserProfile(localProfile);
+            } catch (syncError) {
+              console.warn("Could not sync localStorage to database:", syncError);
+            }
           }
+        } catch (localError) {
+          console.warn("Could not load from localStorage:", localError);
         }
       } catch (err: any) {
         setError(err.message || "Failed to load profile");
@@ -64,33 +61,7 @@ export function useProfile() {
       }
     };
 
-    loadProfile().then(() => {
-      // Merge localStorage data after loading from Supabase
-      if (typeof window !== 'undefined') {
-        const firstIdeaStr = localStorage.getItem('onboarding_first_idea');
-        const teamStr = localStorage.getItem('onboarding_team');
-        const detailsStr = localStorage.getItem('onboarding_details');
-        const socialsStr = localStorage.getItem('onboarding_socials');
-        
-        setProfile(prev => {
-          if (!prev) return prev;
-          const firstIdea = firstIdeaStr ? JSON.parse(firstIdeaStr) : undefined;
-          const teamEmails = teamStr ? JSON.parse(teamStr) : undefined;
-          const details = detailsStr ? JSON.parse(detailsStr) : {};
-          const socials = socialsStr ? JSON.parse(socialsStr) : undefined;
-          
-          return {
-            ...prev,
-            bio: prev.bio || details.bio,
-            occupation: prev.occupation || details.occupation,
-            referralSource: prev.referralSource || details.referralSource,
-            firstIdea: prev.firstIdea || firstIdea,
-            teamEmails: prev.teamEmails?.length ? prev.teamEmails : teamEmails,
-            socials: prev.socials || socials,
-          };
-        });
-      }
-    });
+    loadProfile();
   }, [user, isAuthenticated]);
 
   const updateProfile = async (updates: Partial<UserProfile>) => {

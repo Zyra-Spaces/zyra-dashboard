@@ -1,4 +1,6 @@
 import { createClient } from './client';
+import { requireAuth, checkAuth } from './auth-guard';
+import { extractErrorInfo, getErrorDebugInfo } from '../utils/error-extractor';
 
 export interface Idea {
   id: string;
@@ -14,6 +16,10 @@ export interface Idea {
   };
   context?: string;
   color?: string; // For pinned note color
+  cover_image_url?: string;
+  cover_image_type?: 'system' | 'uploaded';
+  is_public?: boolean;
+  share_token?: string;
   created_at: string;
   updated_at: string;
 }
@@ -22,13 +28,10 @@ export interface Idea {
  * Save an idea to Supabase
  */
 export async function saveIdea(idea: Omit<Idea, 'id' | 'user_id' | 'created_at' | 'updated_at'>): Promise<Idea> {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) {
-    throw new Error('User not authenticated');
-  }
+  const { user, supabase } = await requireAuth();
 
+  // Insert idea - simple approach without any joins
+  // RLS policy will validate user_id matches auth.uid()
   const { data, error } = await supabase
     .from('ideas')
     .insert({
@@ -38,12 +41,31 @@ export async function saveIdea(idea: Omit<Idea, 'id' | 'user_id' | 'created_at' 
       formatted_idea: idea.formatted_idea || null,
       context: idea.context || null,
       color: idea.color || null,
+      cover_image_url: idea.cover_image_url || null,
+      cover_image_type: idea.cover_image_type || 'system',
+      is_public: idea.is_public || false,
     })
     .select()
     .single();
 
   if (error) {
-    throw error;
+    // Extract error information using utility
+    const errorInfo = extractErrorInfo(error);
+    const debugInfo = getErrorDebugInfo(error);
+    
+    // Log full error details for debugging
+    console.error('Supabase error in saveIdea:', {
+      ...errorInfo,
+      ...debugInfo,
+    });
+    
+    // Create a proper Error object with all details
+    const enhancedError = new Error(errorInfo.message);
+    (enhancedError as any).code = errorInfo.code;
+    (enhancedError as any).details = errorInfo.details;
+    (enhancedError as any).hint = errorInfo.hint;
+    (enhancedError as any).originalError = error;
+    throw enhancedError;
   }
 
   return data;
@@ -53,12 +75,7 @@ export async function saveIdea(idea: Omit<Idea, 'id' | 'user_id' | 'created_at' 
  * Get all ideas for the current user
  */
 export async function getUserIdeas(): Promise<Idea[]> {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) {
-    throw new Error('User not authenticated');
-  }
+  const { user, supabase } = await requireAuth();
 
   const { data, error } = await supabase
     .from('ideas')
@@ -67,7 +84,20 @@ export async function getUserIdeas(): Promise<Idea[]> {
     .order('created_at', { ascending: false });
 
   if (error) {
-    throw error;
+    // Extract error information using utility
+    const errorInfo = extractErrorInfo(error);
+    const debugInfo = getErrorDebugInfo(error);
+    
+    console.error('Supabase error in getUserIdeas:', {
+      ...errorInfo,
+      ...debugInfo,
+    });
+    
+    const enhancedError = new Error(errorInfo.message);
+    (enhancedError as any).code = errorInfo.code;
+    (enhancedError as any).details = errorInfo.details;
+    (enhancedError as any).hint = errorInfo.hint;
+    throw enhancedError;
   }
 
   return data || [];
@@ -77,12 +107,7 @@ export async function getUserIdeas(): Promise<Idea[]> {
  * Update an idea
  */
 export async function updateIdea(id: string, updates: Partial<Idea>): Promise<Idea> {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) {
-    throw new Error('User not authenticated');
-  }
+  const { user, supabase } = await requireAuth();
 
   const { data, error } = await supabase
     .from('ideas')
@@ -96,7 +121,13 @@ export async function updateIdea(id: string, updates: Partial<Idea>): Promise<Id
     .single();
 
   if (error) {
-    throw error;
+    // Extract meaningful error message from Supabase error
+    const errorMessage = error.message || error.details || error.hint || 'Database error occurred';
+    const enhancedError = new Error(errorMessage);
+    (enhancedError as any).code = error.code;
+    (enhancedError as any).details = error.details;
+    (enhancedError as any).hint = error.hint;
+    throw enhancedError;
   }
 
   return data;
@@ -106,12 +137,7 @@ export async function updateIdea(id: string, updates: Partial<Idea>): Promise<Id
  * Delete an idea
  */
 export async function deleteIdea(id: string): Promise<void> {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) {
-    throw new Error('User not authenticated');
-  }
+  const { user, supabase } = await requireAuth();
 
   const { error } = await supabase
     .from('ideas')
@@ -128,12 +154,12 @@ export async function deleteIdea(id: string): Promise<void> {
  * Get idea count for the current user
  */
 export async function getIdeaCount(): Promise<number> {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) {
+  const auth = await checkAuth();
+  if (!auth) {
     return 0;
   }
+  
+  const { supabase, user } = auth;
 
   const { count, error } = await supabase
     .from('ideas')
@@ -141,7 +167,8 @@ export async function getIdeaCount(): Promise<number> {
     .eq('user_id', user.id);
 
   if (error) {
-    console.error('Error getting idea count:', error);
+    const errorMessage = error.message || error.details || error.hint || 'Database error occurred';
+    console.error('Error getting idea count:', errorMessage, error);
     return 0;
   }
 

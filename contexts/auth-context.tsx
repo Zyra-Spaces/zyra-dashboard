@@ -76,14 +76,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const initAuth = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user }, error } = await supabase.auth.getUser();
+        
+        // If there's an error or no user, clear auth state
+        if (error || !user) {
+          updateState({ 
+            user: null, 
+            isAuthenticated: false, 
+            isLoading: false 
+          });
+          return;
+        }
+
+        // Verify user session is still valid
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          updateState({ 
+            user: null, 
+            isAuthenticated: false, 
+            isLoading: false 
+          });
+          return;
+        }
+
         updateState({ 
           user, 
-          isAuthenticated: !!user, 
+          isAuthenticated: true, 
           isLoading: false 
         });
-      } catch {
-        updateState({ isLoading: false });
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+        updateState({ 
+          user: null,
+          isAuthenticated: false, 
+          isLoading: false 
+        });
       }
     };
 
@@ -91,10 +118,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      async (event: string, session: any) => {
+        // Verify session is valid
+        if (event === 'SIGNED_OUT' || !session) {
+          updateState({
+            user: null,
+            isAuthenticated: false,
+            isLoading: false,
+          });
+          return;
+        }
+
+        // Verify user exists in session
+        if (!session.user) {
+          updateState({
+            user: null,
+            isAuthenticated: false,
+            isLoading: false,
+          });
+          return;
+        }
+
         updateState({
-          user: session?.user ?? null,
-          isAuthenticated: !!session?.user,
+          user: session.user,
+          isAuthenticated: true,
           isLoading: false,
         });
 
@@ -220,11 +267,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           router.push('/set-password');
         } else {
           // Existing user - check if they have onboarding data
-          if (typeof window !== "undefined") {
-            const hasDetails = localStorage.getItem("onboarding_details");
-            router.push(hasDetails ? '/dashboard' : '/onboarding/details');
-          } else {
-            router.push('/dashboard');
+          try {
+            const { isOnboardingComplete } = await import('@/lib/onboarding');
+            const isComplete = await isOnboardingComplete();
+            router.push(isComplete ? '/dashboard' : '/onboarding/details');
+          } catch (error) {
+            console.error('Error checking onboarding status:', error);
+            // Fallback to localStorage check
+            if (typeof window !== "undefined") {
+              const hasDetails = localStorage.getItem("onboarding_details");
+              router.push(hasDetails ? '/dashboard' : '/onboarding/details');
+            } else {
+              router.push('/dashboard');
+            }
           }
         }
       } else {
@@ -304,15 +359,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       
       // Check if user has onboarding data - if yes, go to dashboard
-      if (typeof window !== "undefined") {
-        const hasDetails = localStorage.getItem("onboarding_details");
-        if (hasDetails) {
+      try {
+        const { isOnboardingComplete } = await import('@/lib/onboarding');
+        const isComplete = await isOnboardingComplete();
+        if (isComplete) {
           router.push('/dashboard');
         } else {
           router.push('/onboarding/details');
         }
-      } else {
-        router.push('/dashboard');
+      } catch (error) {
+        console.error('Error checking onboarding status:', error);
+        // Fallback to localStorage check
+        if (typeof window !== "undefined") {
+          const hasDetails = localStorage.getItem("onboarding_details");
+          if (hasDetails) {
+            router.push('/dashboard');
+          } else {
+            router.push('/onboarding/details');
+          }
+        } else {
+          router.push('/dashboard');
+        }
       }
     } catch (error: any) {
       updateState({ 

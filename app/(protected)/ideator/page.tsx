@@ -2,106 +2,128 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { ProtectedRoute } from '@/components/auth/protected-route';
+import { useAuth } from '@/contexts/auth-context';
+import { useProfile } from '@/hooks/use-profile';
 import { InlineNotification, notify } from '@/components/ui/inline-notification';
+import { saveIdea, getUserIdeas, deleteIdea, getIdeaCount, type Idea } from '@/lib/supabase/ideas';
+import { saveProject } from '@/lib/supabase/projects';
+import { extractErrorInfo, getErrorDebugInfo } from '@/lib/utils/error-extractor';
+import { EnhancedIdeaDetail } from '@/components/ideator/enhanced-idea-detail';
 import { 
   Sparkles, 
   Send, 
   Loader2, 
   Lightbulb, 
-  RefreshCw,
   Copy,
   Check,
   Zap,
-  Target,
-  Users,
-  FileText,
-  History,
-  X,
-  Plus,
   Rocket,
-  ChevronRight,
-  MessageSquare,
-  Edit3
+  X,
+  Edit3,
+  Trash2,
+  Home,
+  Briefcase,
+  Settings,
+  Bell,
+  Search,
+  MoreVertical,
+  CheckCircle2,
+  Pin
 } from 'lucide-react';
-
-interface GeneratedIdea {
-  id: string;
-  prompt: string;
-  idea: string;
-  formattedIdea?: {
-    title?: string;
-    description?: string;
-    features?: string[];
-    useCases?: string[];
-    tags?: string[];
-  };
-  context?: string;
-  timestamp: Date;
-}
 
 const DEFAULT_CONTEXT = `You are helping a user generate innovative project ideas. The user wants creative, feasible, and well-structured project concepts that can be turned into real products or services. Focus on practical solutions with clear value propositions.`;
 
+// Color palette for pinned notes
+const NOTE_COLORS = [
+  { name: 'yellow', bg: 'bg-yellow-50', border: 'border-yellow-200', text: 'text-yellow-900', accent: 'bg-yellow-100' },
+  { name: 'pink', bg: 'bg-pink-50', border: 'border-pink-200', text: 'text-pink-900', accent: 'bg-pink-100' },
+  { name: 'blue', bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-900', accent: 'bg-blue-100' },
+  { name: 'green', bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-900', accent: 'bg-green-100' },
+  { name: 'purple', bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-900', accent: 'bg-purple-100' },
+  { name: 'orange', bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-900', accent: 'bg-orange-100' },
+];
+
+function getRandomColor() {
+  return NOTE_COLORS[Math.floor(Math.random() * NOTE_COLORS.length)];
+}
+
 export default function IdeatorPage() {
   const router = useRouter();
+  const { user } = useAuth();
+  const { profile } = useProfile();
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedIdeas, setGeneratedIdeas] = useState<GeneratedIdea[]>([]);
-  const [selectedIdea, setSelectedIdea] = useState<GeneratedIdea | null>(null);
+  const [ideas, setIdeas] = useState<Idea[]>([]);
+  const [selectedIdea, setSelectedIdea] = useState<Idea | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showProjectModal, setShowProjectModal] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [refinePrompt, setRefinePrompt] = useState('');
+  const [ideaCount, setIdeaCount] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Load ideas from localStorage on mount
+  const displayName = profile?.firstName && profile?.lastName
+    ? `${profile.firstName} ${profile.lastName}`
+    : profile?.firstName || profile?.lastName || user?.email?.split('@')[0] || 'User';
+
+  // Load ideas from Supabase
   useEffect(() => {
-    const saved = localStorage.getItem('zyra_ideas');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setGeneratedIdeas(parsed.map((idea: any) => ({
-          ...idea,
-          timestamp: new Date(idea.timestamp),
-        })));
-      } catch (e) {
-        console.error('Error loading ideas:', e);
-      }
-    }
+    loadIdeas();
   }, []);
 
-  // Save ideas to localStorage whenever they change
-  useEffect(() => {
-    if (generatedIdeas.length > 0) {
-      localStorage.setItem('zyra_ideas', JSON.stringify(generatedIdeas));
+  const loadIdeas = async () => {
+    try {
+      setIsLoading(true);
+      const userIdeas = await getUserIdeas();
+      setIdeas(userIdeas);
+      const count = await getIdeaCount();
+      setIdeaCount(count);
+    } catch (error: any) {
+      // Extract error information using utility
+      const errorInfo = extractErrorInfo(error);
+      const debugInfo = getErrorDebugInfo(error);
+      
+      console.error('Error loading ideas:', {
+        ...errorInfo,
+        ...debugInfo,
+      });
+      
+      // Provide helpful error message
+      if (errorInfo.code === 'PGRST116' || errorInfo.message.includes('relation') || errorInfo.message.includes('does not exist')) {
+        notify.error('Database table not found. Please run the SQL setup script in Supabase.');
+      } else if (errorInfo.code === '42501' || errorInfo.message.includes('permission denied') || errorInfo.message.includes('policy')) {
+        notify.error('Permission denied. Please check Row Level Security policies in Supabase.');
+      } else {
+        notify.error(errorInfo.message || 'Failed to load ideas. Please check if the database tables are set up correctly.');
+      }
+    } finally {
+      setIsLoading(false);
     }
-  }, [generatedIdeas]);
+  };
 
   // Get context from previous chat history
   const getContext = useMemo(() => {
-    if (generatedIdeas.length === 0) {
+    if (ideas.length === 0) {
       return DEFAULT_CONTEXT;
     }
-    // Use the last 3 ideas as context
-    const recentIdeas = generatedIdeas.slice(0, 3);
+    const recentIdeas = ideas.slice(0, 3);
     const contextParts = recentIdeas.map(idea => 
       `Previous idea: ${idea.prompt} - ${idea.idea.substring(0, 200)}...`
     );
     return `${DEFAULT_CONTEXT}\n\nRecent conversation context:\n${contextParts.join('\n\n')}`;
-  }, [generatedIdeas]);
+  }, [ideas]);
 
   // Parse idea text into structured format
   const parseIdea = (text: string) => {
     const parsed: any = {};
     
-    // Extract title (usually after **Title:** or first line)
     const titleMatch = text.match(/\*\*Title:\*\*\s*(.+?)(?:\n|$)/i) || text.match(/^(.+?)(?:\n|$)/);
     if (titleMatch) parsed.title = titleMatch[1].trim();
     
-    // Extract description
     const descMatch = text.match(/\*\*Description:\*\*\s*(.+?)(?:\n\n|\*\*)/is);
     if (descMatch) parsed.description = descMatch[1].trim();
     
-    // Extract features
     const featuresMatch = text.match(/\*\*Key Features[^:]*:\*\*\s*([\s\S]+?)(?:\n\n\*\*|$)/i);
     if (featuresMatch) {
       const featuresText = featuresMatch[1];
@@ -111,7 +133,6 @@ export default function IdeatorPage() {
         .map(f => f.trim().replace(/^[-•*]\s*/, ''));
     }
     
-    // Extract use cases
     const useCasesMatch = text.match(/\*\*Potential Use Cases[^:]*:\*\*\s*([\s\S]+?)(?:\n\n\*\*|$)/i);
     if (useCasesMatch) {
       const useCasesText = useCasesMatch[1];
@@ -121,7 +142,6 @@ export default function IdeatorPage() {
         .map(u => u.trim().replace(/^[-•*]\s*/, ''));
     }
     
-    // Extract tags
     const tagsMatch = text.match(/\*\*Suggested Tags[^:]*:\*\*\s*(.+?)(?:\n\n|$)/i);
     if (tagsMatch) {
       parsed.tags = tagsMatch[1]
@@ -133,7 +153,7 @@ export default function IdeatorPage() {
     return parsed;
   };
 
-  const handleGenerate = async (refineIdea?: GeneratedIdea) => {
+  const handleGenerate = async (refineIdea?: Idea) => {
     const currentPrompt = refineIdea ? refinePrompt : prompt;
     if (!currentPrompt.trim()) {
       notify.error('Please enter a prompt to generate an idea');
@@ -172,23 +192,63 @@ export default function IdeatorPage() {
       }
 
       const formattedIdea = parseIdea(data.idea);
-      const newIdea: GeneratedIdea = {
-        id: Date.now().toString(),
-        prompt: currentPrompt.trim(),
-        idea: data.idea,
-        formattedIdea,
-        context: refineIdea ? refinePrompt : undefined,
-        timestamp: new Date(),
-      };
+      const color = getRandomColor();
+      
+      try {
+        const newIdea = await saveIdea({
+          prompt: currentPrompt.trim(),
+          idea: data.idea,
+          formatted_idea: formattedIdea,
+          context: refineIdea ? refinePrompt : undefined,
+          color: color.name,
+        });
 
-      setGeneratedIdeas([newIdea, ...generatedIdeas]);
-      setPrompt('');
-      setRefinePrompt('');
-      setSelectedIdea(null);
-      notify.success('Idea generated successfully!');
+        await loadIdeas();
+        setPrompt('');
+        setRefinePrompt('');
+        setSelectedIdea(null);
+        notify.success('Idea generated and saved!');
+      } catch (saveError: any) {
+        // Error saving to database - extract properly
+        const errorInfo = extractErrorInfo(saveError);
+        const debugInfo = getErrorDebugInfo(saveError);
+        
+        console.error('Error saving idea to database:', {
+          ...errorInfo,
+          ...debugInfo,
+        });
+        
+        if (errorInfo.code === 'PGRST116' || errorInfo.message.includes('relation') || errorInfo.message.includes('does not exist')) {
+          notify.error('Database table not found. Please run the SQL setup script in Supabase.');
+        } else if (errorInfo.code === '42501' || errorInfo.message.includes('permission denied') || errorInfo.message.includes('policy')) {
+          notify.error('Permission denied. Please check Row Level Security policies in Supabase.');
+        } else if (errorInfo.code === '42P17' || errorInfo.message.includes('infinite recursion')) {
+          notify.error('Database policy error. Please run the updated SQL script to fix RLS policies.');
+        } else {
+          notify.error(errorInfo.message || 'Failed to save idea. The idea was generated but could not be saved.');
+        }
+        throw saveError; // Re-throw to be caught by outer catch
+      }
     } catch (error: any) {
-      console.error('Error generating idea:', error);
-      notify.error(error.message || 'Failed to generate idea');
+      // Error from API call or saving - extract properly
+      const errorInfo = extractErrorInfo(error);
+      const debugInfo = getErrorDebugInfo(error);
+      
+      console.error('Error generating idea:', {
+        ...errorInfo,
+        ...debugInfo,
+      });
+      
+      // Provide more helpful error messages
+      if (errorInfo.code === 'PGRST116' || errorInfo.message.includes('relation') || errorInfo.message.includes('does not exist')) {
+        notify.error('Database table not found. Please run the SQL setup script in Supabase.');
+      } else if (errorInfo.code === '42501' || errorInfo.message.includes('permission denied') || errorInfo.message.includes('policy')) {
+        notify.error('Permission denied. Please check Row Level Security policies in Supabase.');
+      } else if (errorInfo.code === '42P17' || errorInfo.message.includes('infinite recursion')) {
+        notify.error('Database policy error. Please run the updated SQL script to fix RLS policies.');
+      } else {
+        notify.error(errorInfo.message || 'Failed to generate idea. Please try again.');
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -197,6 +257,22 @@ export default function IdeatorPage() {
   const handleRefine = () => {
     if (!selectedIdea) return;
     handleGenerate(selectedIdea);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this idea?')) return;
+    
+    try {
+      await deleteIdea(id);
+      await loadIdeas();
+      if (selectedIdea?.id === id) {
+        setSelectedIdea(null);
+      }
+      notify.success('Idea deleted');
+    } catch (error: any) {
+      console.error('Error deleting idea:', error);
+      notify.error('Failed to delete idea');
+    }
   };
 
   const handleCopy = async (idea: string, id: string) => {
@@ -215,366 +291,362 @@ export default function IdeatorPage() {
     setShowProjectModal(true);
   };
 
-  const handleCreateProject = async (title: string, description: string) => {
-    // Save project data to localStorage for now
-    const projectData = {
-      title: title || selectedIdea?.formattedIdea?.title || 'New Project',
-      description: description || selectedIdea?.formattedIdea?.description || selectedIdea?.idea,
-      sourceIdea: selectedIdea?.id,
-      createdAt: new Date().toISOString(),
-    };
-    
-    const existingProjects = JSON.parse(localStorage.getItem('zyra_projects') || '[]');
-    existingProjects.push(projectData);
-    localStorage.setItem('zyra_projects', JSON.stringify(existingProjects));
-    
-    notify.success('Project created successfully!');
-    setShowProjectModal(false);
-    setSelectedIdea(null);
-    
-    // Navigate to project creation page or dashboard
-    setTimeout(() => {
-      router.push('/dashboard');
-    }, 1000);
+  const handleCreateProject = async (title: string, description: string, isPublic: boolean) => {
+    try {
+      await saveProject({
+        title: title || selectedIdea?.formatted_idea?.title || 'New Project',
+        description: description || selectedIdea?.formatted_idea?.description || selectedIdea?.idea,
+        source_idea_id: selectedIdea?.id,
+        status: 'active',
+        is_public: isPublic,
+      });
+      
+      notify.success('Project created successfully!');
+      setShowProjectModal(false);
+      setSelectedIdea(null);
+      
+      setTimeout(() => {
+        router.push('/dashboard');
+      }, 1000);
+    } catch (error: any) {
+      console.error('Error creating project:', error);
+      notify.error(error.message || 'Failed to create project');
+    }
+  };
+
+  const getColorClass = (colorName?: string | null) => {
+    const color = NOTE_COLORS.find(c => c.name === colorName) || getRandomColor();
+    return color;
   };
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-white flex">
+      <div className="min-h-screen bg-white">
         <InlineNotification className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-auto max-w-md" />
         
-        {/* Sidebar */}
-        <aside className={`${sidebarOpen ? 'w-80' : 'w-0'} transition-all duration-300 border-r border-gray-200 bg-white overflow-hidden flex flex-col`}>
-          <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-              <History className="w-5 h-5 text-[#4780C6]" />
-              Recent Ideas
-            </h2>
-            <button
-              onClick={() => setSidebarOpen(false)}
-              className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <X className="w-4 h-4 text-gray-500" />
-            </button>
-          </div>
-          
-          <div className="flex-1 overflow-y-auto p-4 space-y-2">
-            {generatedIdeas.length === 0 ? (
-              <div className="text-center py-8 text-gray-500 text-sm">
-                <Lightbulb className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                <p>No ideas yet</p>
-                <p className="text-xs mt-1">Generate your first idea to see it here</p>
-              </div>
-            ) : (
-              generatedIdeas.map((idea) => (
-                <div
-                  key={idea.id}
-                  onClick={() => setSelectedIdea(idea)}
-                  className={`p-3 rounded-lg border cursor-pointer transition-all ${
-                    selectedIdea?.id === idea.id
-                      ? 'border-[#4780C6] bg-[#4780C6]/5'
-                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <h3 className="font-medium text-sm text-gray-900 line-clamp-1">
-                      {idea.formattedIdea?.title || idea.prompt.substring(0, 40) + '...'}
-                    </h3>
-                    {selectedIdea?.id === idea.id && (
-                      <Check className="w-4 h-4 text-[#4780C6] flex-shrink-0" />
-                    )}
+        {/* Top Header - Same as Dashboard */}
+        <header className="border-b border-gray-200 bg-white sticky top-0 z-50">
+          <div className="max-w-[1920px] mx-auto px-6">
+            <div className="flex items-center justify-between h-16">
+              {/* Left: Logo + Navigation */}
+              <div className="flex items-center gap-8">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-[#4780C6] rounded flex items-center justify-center">
+                    <span className="text-white font-bold text-lg">Z</span>
                   </div>
-                  <p className="text-xs text-gray-500 line-clamp-2 mb-2">
-                    {idea.formattedIdea?.description || idea.idea.substring(0, 100) + '...'}
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    {idea.timestamp.toLocaleDateString()} {idea.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </p>
+                  <span className="text-xl font-semibold text-gray-900">Zyra</span>
                 </div>
-              ))
-            )}
-          </div>
-        </aside>
-
-        {/* Main Content */}
-        <div className="flex-1 flex flex-col">
-          {/* Header */}
-          <header className="border-b border-gray-200 bg-white sticky top-0 z-40">
-            <div className="px-6 h-16 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                {!sidebarOpen && (
-                  <button
-                    onClick={() => setSidebarOpen(true)}
-                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                
+                <nav className="flex items-center gap-6">
+                  <Link 
+                    href="/dashboard" 
+                    className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
                   >
-                    <History className="w-5 h-5 text-gray-600" />
-                  </button>
-                )}
-                <div className="w-10 h-10 bg-[#4780C6] rounded-lg flex items-center justify-center">
-                  <Sparkles className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-xl font-semibold text-gray-900">Ideator</h1>
-                  <p className="text-xs text-gray-500">AI-Powered Idea Generation</p>
-                </div>
+                    <Home className="w-4 h-4" />
+                    Home
+                  </Link>
+                  <Link 
+                    href="/workspaces" 
+                    className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                  >
+                    <Briefcase className="w-4 h-4" />
+                    Workspaces
+                  </Link>
+                  <Link 
+                    href="/ideator" 
+                    className="flex items-center gap-2 text-sm font-medium text-[#4780C6] hover:text-[#4780C6]/80 transition-colors"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    ideator
+                    {ideaCount > 0 && (
+                      <span className="ml-1 px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">{ideaCount}</span>
+                    )}
+                  </Link>
+                </nav>
+              </div>
+
+              {/* Right: Actions + Profile */}
+              <div className="flex items-center gap-4">
+                <button className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg hover:from-purple-600 hover:to-purple-700 transition-all text-sm font-medium">
+                  <Zap className="w-4 h-4" />
+                  Upgrade now
+                </button>
+                <button className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
+                  <Settings className="w-5 h-5" />
+                </button>
+                <button className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors relative">
+                  <Bell className="w-5 h-5" />
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
+                </button>
+                <Link href="/profile" className="flex items-center">
+                  {profile?.profilePic ? (
+                    <img 
+                      src={profile.profilePic} 
+                      alt="Profile" 
+                      className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 cursor-pointer hover:border-[#4780C6] transition-colors"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white font-semibold cursor-pointer hover:ring-2 hover:ring-[#4780C6] transition-all">
+                      {displayName.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </Link>
               </div>
             </div>
-          </header>
+          </div>
+        </header>
 
-          {/* Chat Area */}
-          <div className="flex-1 overflow-y-auto bg-gray-50">
-            {selectedIdea ? (
-              // Selected Idea View
-              <div className="max-w-4xl mx-auto p-6">
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-                  <div className="flex items-start justify-between mb-6">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Sparkles className="w-5 h-5 text-[#4780C6]" />
-                        <h2 className="text-2xl font-bold text-gray-900">
-                          {selectedIdea.formattedIdea?.title || 'Generated Idea'}
-                        </h2>
-                      </div>
-                      <p className="text-sm text-gray-500 mb-1">
-                        <span className="font-medium">Prompt:</span> {selectedIdea.prompt}
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        {selectedIdea.timestamp.toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setSelectedIdea(null)}
-                        className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                        title="Close"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
+        {/* Main Content - Three Column Layout */}
+        <div className="max-w-[1920px] mx-auto px-6 py-6 h-[calc(100vh-4rem)] overflow-hidden flex flex-col">
+          <div className="grid grid-cols-12 gap-6 flex-1 min-h-0">
+            {/* Left Sidebar */}
+            <aside className="col-span-3 space-y-6">
+              {/* Search Bar */}
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Find the next idea"
+                  className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4780C6] focus:border-transparent text-sm"
+                />
+              </div>
 
-                  {/* Formatted Idea Display */}
-                  {selectedIdea.formattedIdea?.title && (
-                    <div className="space-y-6">
-                      {selectedIdea.formattedIdea.description && (
-                        <div>
-                          <h3 className="text-sm font-semibold text-gray-700 mb-2">Description</h3>
-                          <p className="text-gray-600 leading-relaxed">{selectedIdea.formattedIdea.description}</p>
-                        </div>
-                      )}
-
-                      {selectedIdea.formattedIdea.features && selectedIdea.formattedIdea.features.length > 0 && (
-                        <div>
-                          <h3 className="text-sm font-semibold text-gray-700 mb-2">Key Features</h3>
-                          <ul className="space-y-2">
-                            {selectedIdea.formattedIdea.features.map((feature, idx) => (
-                              <li key={idx} className="flex items-start gap-2 text-gray-600">
-                                <span className="text-[#4780C6] mt-1">•</span>
-                                <span>{feature}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {selectedIdea.formattedIdea.useCases && selectedIdea.formattedIdea.useCases.length > 0 && (
-                        <div>
-                          <h3 className="text-sm font-semibold text-gray-700 mb-2">Use Cases</h3>
-                          <ul className="space-y-2">
-                            {selectedIdea.formattedIdea.useCases.map((useCase, idx) => (
-                              <li key={idx} className="flex items-start gap-2 text-gray-600">
-                                <span className="text-[#4780C6] mt-1">•</span>
-                                <span>{useCase}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {selectedIdea.formattedIdea.tags && selectedIdea.formattedIdea.tags.length > 0 && (
-                        <div>
-                          <h3 className="text-sm font-semibold text-gray-700 mb-2">Tags</h3>
-                          <div className="flex flex-wrap gap-2">
-                            {selectedIdea.formattedIdea.tags.map((tag, idx) => (
-                              <span
-                                key={idx}
-                                className="px-3 py-1 bg-[#4780C6]/10 text-[#4780C6] rounded-full text-xs font-medium"
-                              >
-                                {tag}
-                              </span>
-                            ))}
+              {/* Featured Profile Card */}
+              <div className="bg-gradient-to-br from-pink-500/20 via-purple-500/20 to-blue-500/20 rounded-xl p-6 relative overflow-hidden">
+                <div className="absolute inset-0 bg-[url('/images/banners/1.png')] opacity-10 bg-cover bg-center"></div>
+                <div className="relative">
+                  <div className="flex items-start justify-between mb-4">
+                    <Link href="/profile" className="flex items-center gap-3 group">
+                      {profile?.profilePic ? (
+                        <div className="relative">
+                          <img 
+                            src={profile.profilePic} 
+                            alt="Profile" 
+                            className="w-16 h-16 rounded-full object-cover border-4 border-white shadow-lg group-hover:ring-2 group-hover:ring-[#4780C6] transition-all"
+                          />
+                          <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center border-2 border-white">
+                            <CheckCircle2 className="w-3 h-3 text-white" />
                           </div>
                         </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Raw Idea Text (fallback) */}
-                  {!selectedIdea.formattedIdea?.title && (
-                    <div className="prose prose-sm max-w-none">
-                      <div className="whitespace-pre-wrap text-gray-700 leading-relaxed">
-                        {selectedIdea.idea}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Action Buttons */}
-                  <div className="mt-8 pt-6 border-t border-gray-200 flex items-center gap-3 flex-wrap">
-                    <button
-                      onClick={handleConvertToProject}
-                      className="flex items-center gap-2 px-4 py-2 bg-[#4780C6] text-white rounded-lg hover:bg-[#4780C6]/90 transition-colors text-sm font-medium"
-                    >
-                      <Rocket className="w-4 h-4" />
-                      Convert to Project
-                    </button>
-                    <button
-                      onClick={() => handleCopy(selectedIdea.idea, selectedIdea.id)}
-                      className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
-                    >
-                      {copiedId === selectedIdea.id ? (
-                        <>
-                          <Check className="w-4 h-4 text-green-500" />
-                          Copied!
-                        </>
                       ) : (
-                        <>
-                          <Copy className="w-4 h-4" />
-                          Copy
-                        </>
+                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white font-semibold text-xl border-4 border-white shadow-lg group-hover:ring-2 group-hover:ring-[#4780C6] transition-all">
+                          {displayName.charAt(0).toUpperCase()}
+                        </div>
                       )}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setRefinePrompt('');
-                        setSelectedIdea(selectedIdea);
-                      }}
-                      className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
-                    >
-                      <Edit3 className="w-4 h-4" />
-                      Refine
-                    </button>
-                  </div>
-
-                  {/* Refine Section */}
-                  {selectedIdea && (
-                    <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        How would you like to refine this idea?
-                      </label>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={refinePrompt}
-                          onChange={(e) => setRefinePrompt(e.target.value)}
-                          placeholder="E.g., Make it more focused on mobile users..."
-                          className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4780C6] focus:border-transparent text-sm"
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                              e.preventDefault();
-                              handleRefine();
-                            }
-                          }}
-                        />
-                        <button
-                          onClick={handleRefine}
-                          disabled={!refinePrompt.trim() || isGenerating}
-                          className="px-4 py-2 bg-[#4780C6] text-white rounded-lg hover:bg-[#4780C6]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
-                        >
-                          {isGenerating ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Send className="w-4 h-4" />
-                          )}
-                        </button>
+                      <div>
+                        <h3 className="font-semibold text-gray-900 group-hover:text-[#4780C6] transition-colors">{displayName}</h3>
+                        <div className="flex items-center gap-1 mt-1">
+                          <span className="text-xs text-gray-600">•</span>
+                          <span className="text-xs font-medium text-purple-600">Premium</span>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    </Link>
+                  </div>
+                  <p className="text-sm text-gray-700 mb-4 italic">Perfect Dreamers Don&apos;t Sleep</p>
+                  <div className="flex items-center justify-end">
+                    <span className="text-sm font-medium text-gray-600">2.4k Observers</span>
+                  </div>
                 </div>
               </div>
-            ) : (
-              // Welcome/Empty State
-              <div className="max-w-4xl mx-auto p-6">
-                <div className="text-center py-12">
+
+              {/* Your Stats */}
+              <div className="bg-white border border-gray-200 rounded-xl p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-gray-900">Your Stats</h3>
+                  <button className="p-1 text-gray-400 hover:text-gray-600">
+                    <MoreVertical className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Projects</span>
+                    <span className="font-semibold text-gray-900">23</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Teams</span>
+                    <span className="font-semibold text-gray-900">23</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Ideas</span>
+                    <span className="font-semibold text-gray-900">{ideaCount}</span>
+                  </div>
+                </div>
+              </div>
+            </aside>
+
+            {/* Center Content - Pinned Notes Grid */}
+            <main className="col-span-6 flex flex-col min-h-0">
+              {isLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-[#4780C6]" />
+                </div>
+              ) : ideas.length === 0 ? (
+                // Empty State
+                <div className="text-center py-12 bg-white border border-gray-200 rounded-xl">
                   <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-[#4780C6]/20 to-purple-500/20 rounded-full mb-6">
                     <Lightbulb className="w-10 h-10 text-[#4780C6]" />
                   </div>
-                  <h2 className="text-3xl font-bold text-gray-900 mb-2">
-                    Welcome to Ideator
-                  </h2>
+                  <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome to Ideator</h2>
                   <p className="text-gray-600 mb-8 max-w-md mx-auto">
-                    Get started by describing what you&apos;re looking for, and our AI will help you create innovative project ideas. Not sure where to start?
+                    Get started by describing what you&apos;re looking for, and our AI will help you create innovative project ideas.
                   </p>
-
-                  {/* Feature Cards */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-                    <div className="bg-white border border-gray-200 rounded-lg p-4 text-left">
-                      <div className="w-10 h-10 bg-[#4780C6]/10 rounded-lg flex items-center justify-center mb-3">
-                        <FileText className="w-5 h-5 text-[#4780C6]" />
-                      </div>
-                      <h3 className="font-semibold text-gray-900 mb-1">Structured Ideas</h3>
-                      <p className="text-sm text-gray-600">Get well-organized project ideas with titles, descriptions, features, and tags.</p>
-                    </div>
-                    <div className="bg-white border border-gray-200 rounded-lg p-4 text-left">
-                      <div className="w-10 h-10 bg-[#4780C6]/10 rounded-lg flex items-center justify-center mb-3">
-                        <Edit3 className="w-5 h-5 text-[#4780C6]" />
-                      </div>
-                      <h3 className="font-semibold text-gray-900 mb-1">Refine & Iterate</h3>
-                      <p className="text-sm text-gray-600">Select any idea to refine it further based on your specific needs.</p>
-                    </div>
-                    <div className="bg-white border border-gray-200 rounded-lg p-4 text-left">
-                      <div className="w-10 h-10 bg-[#4780C6]/10 rounded-lg flex items-center justify-center mb-3">
-                        <Rocket className="w-5 h-5 text-[#4780C6]" />
-                      </div>
-                      <h3 className="font-semibold text-gray-900 mb-1">Convert to Project</h3>
-                      <p className="text-sm text-gray-600">Turn your favorite ideas into real projects and invite collaborators.</p>
+                </div>
+              ) : (
+                // Pinned Notes Grid - Scrollable
+                <div className="flex flex-col flex-1 min-h-0">
+                  <div className="flex items-center justify-between mb-4 flex-shrink-0">
+                    <h2 className="text-xl font-bold text-gray-900">Your Ideas</h2>
+                    <span className="text-sm text-gray-500">{ideas.length} {ideas.length === 1 ? 'idea' : 'ideas'}</span>
+                  </div>
+                  <div className="flex-1 overflow-y-auto pr-2">
+                    <div className="grid grid-cols-2 gap-4 pb-4">
+                      {ideas.map((idea) => {
+                        const colorClass = getColorClass(idea.color);
+                        return (
+                          <div
+                            key={idea.id}
+                            onClick={() => setSelectedIdea(idea)}
+                            className={`${colorClass.bg} ${colorClass.border} border-2 rounded-lg p-5 cursor-pointer hover:shadow-lg transition-all transform hover:-translate-y-1 relative`}
+                            style={{
+                              transform: `rotate(${Math.random() * 4 - 2}deg)`,
+                            }}
+                          >
+                            <div className="absolute top-2 right-2">
+                              <Pin className={`w-4 h-4 ${colorClass.text} opacity-50`} />
+                            </div>
+                            <h3 className={`font-bold text-lg mb-2 ${colorClass.text} line-clamp-2`}>
+                              {idea.formatted_idea?.title || idea.prompt.substring(0, 50) + '...'}
+                            </h3>
+                            <p className={`text-sm mb-3 ${colorClass.text} opacity-80 line-clamp-3`}>
+                              {idea.formatted_idea?.description || idea.idea.substring(0, 120) + '...'}
+                            </p>
+                            <div className="flex items-center justify-between">
+                              <span className={`text-xs ${colorClass.text} opacity-60`}>
+                                {new Date(idea.created_at).toLocaleDateString()}
+                              </span>
+                              {idea.formatted_idea?.tags && idea.formatted_idea.tags.length > 0 && (
+                                <div className="flex gap-1">
+                                  {idea.formatted_idea.tags.slice(0, 2).map((tag, idx) => (
+                                    <span
+                                      key={idx}
+                                      className={`px-2 py-0.5 ${colorClass.accent} ${colorClass.text} rounded text-xs font-medium`}
+                                    >
+                                      {tag.substring(0, 8)}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
 
-          {/* Input Area */}
-          <div className="border-t border-gray-200 bg-white p-4">
-            <div className="max-w-4xl mx-auto">
-              <div className="flex items-center justify-between mb-2 px-2">
-                <span className="text-xs text-gray-500">Context managed automatically from your conversation history</span>
-                <span className="text-xs text-gray-400">{prompt.length}/3000</span>
+              {/* Input Area - Fixed at bottom */}
+              <div className="bg-white border border-gray-200 rounded-xl p-4 flex-shrink-0 mt-6">
+                <div className="flex items-center justify-between mb-2 px-2">
+                  <span className="text-xs text-gray-500">Context managed automatically from your conversation history</span>
+                  <span className="text-xs text-gray-400">{prompt.length}/3000</span>
+                </div>
+                <div className="relative">
+                  <textarea
+                    value={prompt}
+                    onChange={(e) => {
+                      if (e.target.value.length <= 3000) setPrompt(e.target.value);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                        e.preventDefault();
+                        handleGenerate();
+                      }
+                    }}
+                    placeholder="Ask Anything... Describe what kind of project idea you're looking for"
+                    className="w-full px-4 py-3 pr-12 border-2 border-[#4780C6] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4780C6]/20 resize-none text-sm"
+                    rows={3}
+                  />
+                  <button
+                    onClick={() => handleGenerate()}
+                    disabled={isGenerating || !prompt.trim()}
+                    className="absolute bottom-3 right-3 p-2 bg-[#4780C6] text-white rounded-lg hover:bg-[#4780C6]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isGenerating ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <Send className="w-5 h-5" />
+                    )}
+                  </button>
+                </div>
+                <p className="mt-2 text-xs text-gray-500 px-2">
+                  Press <kbd className="px-2 py-0.5 bg-gray-100 rounded text-xs">Ctrl/Cmd + Enter</kbd> to generate
+                </p>
               </div>
-              <div className="relative">
-                <textarea
-                  value={prompt}
-                  onChange={(e) => {
-                    if (e.target.value.length <= 3000) setPrompt(e.target.value);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                      e.preventDefault();
-                      handleGenerate();
-                    }
-                  }}
-                  placeholder="Ask Anything... Describe what kind of project idea you're looking for"
-                  className="w-full px-4 py-3 pr-12 border-2 border-[#4780C6] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4780C6]/20 resize-none text-sm"
-                  rows={3}
-                />
-                <button
-                  onClick={() => handleGenerate()}
-                  disabled={isGenerating || !prompt.trim()}
-                  className="absolute bottom-3 right-3 p-2 bg-[#4780C6] text-white rounded-lg hover:bg-[#4780C6]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isGenerating ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <Send className="w-5 h-5" />
+            </main>
+
+            {/* Right Sidebar */}
+            <aside className="col-span-3 flex flex-col min-h-0 space-y-6">
+              {/* Recent Ideas List */}
+              <div className="bg-white border border-gray-200 rounded-xl p-5 flex flex-col flex-1 min-h-0">
+                <div className="flex items-center justify-between mb-4 flex-shrink-0">
+                  <h3 className="font-semibold text-gray-900">Recent Ideas</h3>
+                  <button className="p-1 text-gray-400 hover:text-gray-600">
+                    <MoreVertical className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="space-y-3 flex-1 overflow-y-auto pr-2">
+                  {ideas.slice(0, 5).map((idea) => (
+                    <div
+                      key={idea.id}
+                      onClick={() => setSelectedIdea(idea)}
+                      className={`p-3 rounded-lg border cursor-pointer transition-all flex-shrink-0 ${
+                        selectedIdea?.id === idea.id
+                          ? 'border-[#4780C6] bg-[#4780C6]/5'
+                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      <h4 className="font-medium text-sm text-gray-900 line-clamp-1 mb-1">
+                        {idea.formatted_idea?.title || idea.prompt.substring(0, 40) + '...'}
+                      </h4>
+                      <p className="text-xs text-gray-500 line-clamp-2 mb-2">
+                        {idea.formatted_idea?.description || idea.idea.substring(0, 80) + '...'}
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        {new Date(idea.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  ))}
+                  {ideas.length === 0 && (
+                    <p className="text-sm text-gray-500 text-center py-4">No ideas yet</p>
                   )}
-                </button>
+                </div>
               </div>
-              <p className="mt-2 text-xs text-gray-500 px-2">
-                Press <kbd className="px-2 py-0.5 bg-gray-100 rounded text-xs">Ctrl/Cmd + Enter</kbd> to generate
-              </p>
-            </div>
+            </aside>
           </div>
         </div>
+
+        {/* Idea Detail Overlay Modal */}
+        {selectedIdea && (
+          <div 
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" 
+            onClick={() => setSelectedIdea(null)}
+          >
+            <div 
+              className="relative w-full max-w-4xl max-h-[90vh] bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col" 
+              onClick={(e) => e.stopPropagation()}
+            >
+              <EnhancedIdeaDetail
+                idea={selectedIdea}
+                onClose={() => setSelectedIdea(null)}
+                onDelete={handleDelete}
+                onRefine={handleRefine}
+                onConvertToProject={handleConvertToProject}
+                isRefining={isGenerating}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Project Creation Modal */}
         {showProjectModal && selectedIdea && (
@@ -595,12 +667,13 @@ function ProjectModal({
   onClose, 
   onCreate 
 }: { 
-  idea: GeneratedIdea; 
+  idea: Idea; 
   onClose: () => void; 
-  onCreate: (title: string, description: string) => void;
+  onCreate: (title: string, description: string, isPublic: boolean) => void;
 }) {
-  const [title, setTitle] = useState(idea.formattedIdea?.title || '');
-  const [description, setDescription] = useState(idea.formattedIdea?.description || idea.idea.substring(0, 500));
+  const [title, setTitle] = useState(idea.formatted_idea?.title || '');
+  const [description, setDescription] = useState(idea.formatted_idea?.description || idea.idea.substring(0, 500));
+  const [isPublic, setIsPublic] = useState(false);
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -642,21 +715,60 @@ function ProjectModal({
             />
           </div>
 
-          <div className="flex items-center gap-3 pt-4">
-            <button
-              onClick={() => onCreate(title, description)}
-              disabled={!title.trim()}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-[#4780C6] text-white rounded-lg hover:bg-[#4780C6]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-            >
-              <Rocket className="w-4 h-4" />
-              Create Project
-            </button>
-            <button
-              onClick={onClose}
-              className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors font-medium"
-            >
-              Cancel
-            </button>
+          <div className="space-y-4">
+            {/* Privacy Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Project Visibility
+              </label>
+              <div className="space-y-2">
+                <label className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                  <input
+                    type="radio"
+                    name="privacy"
+                    value="public"
+                    checked={isPublic}
+                    onChange={() => setIsPublic(true)}
+                    className="w-4 h-4 text-[#4780C6] focus:ring-[#4780C6]"
+                  />
+                  <div className="flex-1">
+                    <div className="font-medium text-gray-900">Public</div>
+                    <div className="text-xs text-gray-500">Anyone can view this project</div>
+                  </div>
+                </label>
+                <label className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                  <input
+                    type="radio"
+                    name="privacy"
+                    value="private"
+                    checked={!isPublic}
+                    onChange={() => setIsPublic(false)}
+                    className="w-4 h-4 text-[#4780C6] focus:ring-[#4780C6]"
+                  />
+                  <div className="flex-1">
+                    <div className="font-medium text-gray-900">Private</div>
+                    <div className="text-xs text-gray-500">Only you and invited collaborators can access</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 pt-4">
+              <button
+                onClick={() => onCreate(title, description, isPublic)}
+                disabled={!title.trim()}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-[#4780C6] text-white rounded-lg hover:bg-[#4780C6]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+              >
+                <Rocket className="w-4 h-4" />
+                Create Project
+              </button>
+              <button
+                onClick={onClose}
+                className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       </div>

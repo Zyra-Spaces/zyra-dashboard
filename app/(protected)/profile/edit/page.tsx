@@ -146,8 +146,8 @@ export default function EditProfilePage() {
     setSaveStatus("saving");
 
     try {
-      // Save to localStorage for immediate access
-      localStorage.setItem("onboarding_details", JSON.stringify({
+      // Save all profile data to database
+      const profileData: any = {
         firstName: formData.firstName,
         lastName: formData.lastName,
         username: formData.username,
@@ -156,43 +156,12 @@ export default function EditProfilePage() {
         bio: formData.bio,
         occupation: formData.occupation,
         referralSource: formData.referralSource,
-      }));
-
-      // Only save URLs to localStorage (or keep base64 for preview)
-      if (formData.profilePic) {
-        localStorage.setItem("onboarding_profile_pic", formData.profilePic);
-      }
-      if (formData.bannerPic) {
-        localStorage.setItem("onboarding_banner_pic", formData.bannerPic);
-      }
-
-      // Save socials to localStorage only (not metadata)
-      const hasSocials = Object.values(formData.socials).some(v => v);
-      if (hasSocials) {
-        localStorage.setItem("onboarding_socials", JSON.stringify(formData.socials));
-      } else {
-        localStorage.removeItem("onboarding_socials");
-      }
-
-      // Prepare profile data - only small fields go to metadata
-      // Large data (images, arrays, objects) stays in localStorage only
-      const profileData: any = {
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        username: formData.username,
-        dateOfBirth: formData.dateOfBirth,
-        gender: formData.gender,
-        bio: formData.bio, // Only if short (handled in saveUserProfile)
-        occupation: formData.occupation,
-        referralSource: formData.referralSource,
-        // DO NOT include in metadata (stored in localStorage only):
-        // - profilePic, bannerPic (images)
-        // - teamEmails (arrays)
-        // - socials (objects)
-        // This prevents cookie size issues
+        profilePic: formData.profilePic,
+        bannerPic: formData.bannerPic,
+        socials: formData.socials,
       };
 
-      // Save to Supabase (only small fields)
+      // Save to Supabase database
       await saveUserProfile(profileData);
 
       setSaveStatus("saved");

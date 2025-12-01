@@ -37,10 +37,7 @@ export default function OnboardingDetailsPage() {
     }
 
     try {
-      // Save to localStorage
-      localStorage.setItem("onboarding_details", JSON.stringify(formData));
-      
-      // Save to Supabase
+      // Save to Supabase database
       await saveUserProfile({
         firstName: formData.firstName,
         lastName: formData.lastName,

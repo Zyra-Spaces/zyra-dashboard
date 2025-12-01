@@ -27,9 +27,10 @@ export default function OnboardingSocialsPage() {
       const hasAnySocial = Object.values(socials).some(v => v.trim());
       
       if (hasAnySocial) {
-        localStorage.setItem("onboarding_socials", JSON.stringify(socials));
-        // Don't save socials to metadata - store in localStorage only
-        // This prevents cookie size issues
+        // Save socials to database
+        await saveUserProfile({
+          socials: socials,
+        });
         notify.success("Social accounts saved!");
       }
       

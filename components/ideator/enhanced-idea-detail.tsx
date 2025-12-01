@@ -1,0 +1,732 @@
+'use client';
+
+import { useState, useEffect, useRef } from 'react';
+import { useAuth } from '@/contexts/auth-context';
+import { useProfile } from '@/hooks/use-profile';
+import { InlineNotification, notify } from '@/components/ui/inline-notification';
+import { updateIdea, type Idea } from '@/lib/supabase/ideas';
+import { 
+  getIdeaCollaborations, 
+  inviteCollaborator, 
+  addConversationMessage, 
+  getIdeaConversations,
+  updatePresence,
+  type IdeaConversation,
+  type IdeaCollaboration
+} from '@/lib/supabase/collaborations';
+import { createClient } from '@/lib/supabase/client';
+import {
+  Sparkles,
+  X,
+  Copy,
+  Check,
+  Rocket,
+  Edit3,
+  Trash2,
+  Users,
+  UserPlus,
+  Share2,
+  MessageSquare,
+  Send,
+  Loader2,
+  Image as ImageIcon,
+  Upload,
+  Eye,
+  Twitter,
+  Link as LinkIcon,
+  CheckCircle2,
+} from 'lucide-react';
+
+interface EnhancedIdeaDetailProps {
+  idea: Idea;
+  onClose: () => void;
+  onDelete: (id: string) => void;
+  onRefine: (prompt: string) => void;
+  onConvertToProject: () => void;
+  isRefining?: boolean;
+}
+
+// System cover images
+const SYSTEM_COVERS = [
+  '/images/covers/tech.jpg',
+  '/images/covers/design.jpg',
+  '/images/covers/business.jpg',
+  '/images/covers/health.jpg',
+  '/images/covers/education.jpg',
+  '/images/covers/finance.jpg',
+];
+
+export function EnhancedIdeaDetail({
+  idea,
+  onClose,
+  onDelete,
+  onRefine,
+  onConvertToProject,
+  isRefining = false,
+}: EnhancedIdeaDetailProps) {
+  const { user } = useAuth();
+  const { profile } = useProfile();
+  const [collaborations, setCollaborations] = useState<IdeaCollaboration[]>([]);
+  const [conversations, setConversations] = useState<IdeaConversation[]>([]);
+  const [viewers, setViewers] = useState<Array<{ user_id: string; last_seen: string }>>([]);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<'collaborator' | 'viewer'>('collaborator');
+  const [isInviting, setIsInviting] = useState(false);
+  const [message, setMessage] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [showCoverSelector, setShowCoverSelector] = useState(false);
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [isSharing, setIsSharing] = useState(false);
+  const [refinePrompt, setRefinePrompt] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const presenceIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const isOwner = idea.user_id === user?.id;
+
+  // Load collaborations and conversations
+  useEffect(() => {
+    if (idea.id) {
+      loadCollaborations();
+      loadConversations();
+      startPresenceTracking();
+      
+      // Subscribe to real-time updates
+      const supabase = createClient();
+      
+      // Subscribe to conversation updates
+      const conversationChannel = supabase
+        .channel(`idea-conversations-${idea.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'idea_conversations',
+            filter: `idea_id=eq.${idea.id}`,
+          },
+          (payload) => {
+            loadConversations();
+          }
+        )
+        .subscribe();
+
+      // Subscribe to presence updates
+      const presenceChannel = supabase
+        .channel(`idea-presence-${idea.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'idea_presence',
+            filter: `idea_id=eq.${idea.id}`,
+          },
+          () => {
+            loadViewers();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        conversationChannel.unsubscribe();
+        presenceChannel.unsubscribe();
+        if (presenceIntervalRef.current) {
+          clearInterval(presenceIntervalRef.current);
+        }
+      };
+    }
+  }, [idea.id]);
+
+  // Auto-scroll to bottom of conversations
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [conversations]);
+
+  const loadCollaborations = async () => {
+    try {
+      const data = await getIdeaCollaborations(idea.id);
+      setCollaborations(data);
+    } catch (error: any) {
+      console.error('Error loading collaborations:', error);
+    }
+  };
+
+  const loadConversations = async () => {
+    try {
+      const data = await getIdeaConversations(idea.id);
+      setConversations(data);
+    } catch (error: any) {
+      console.error('Error loading conversations:', error);
+    }
+  };
+
+  const loadViewers = async () => {
+    try {
+      const supabase = createClient();
+      const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString();
+      const { data } = await supabase
+        .from('idea_presence')
+        .select('user_id, last_seen')
+        .eq('idea_id', idea.id)
+        .gte('last_seen', thirtySecondsAgo)
+        .neq('user_id', user?.id || '');
+      
+      setViewers(data || []);
+    } catch (error) {
+      console.error('Error loading viewers:', error);
+    }
+  };
+
+  const startPresenceTracking = () => {
+    // Update presence immediately
+    updatePresence(idea.id);
+    
+    // Update presence every 10 seconds
+    presenceIntervalRef.current = setInterval(() => {
+      updatePresence(idea.id);
+      loadViewers();
+    }, 10000);
+  };
+
+  const handleInvite = async () => {
+    if (!inviteEmail.trim()) {
+      notify.error('Please enter an email address');
+      return;
+    }
+
+    setIsInviting(true);
+    try {
+      const response = await fetch('/api/invite-collaborator', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ideaId: idea.id,
+          email: inviteEmail,
+          role: inviteRole,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+
+      notify.success('Invitation sent successfully!');
+      setInviteEmail('');
+      loadCollaborations();
+    } catch (error: any) {
+      notify.error(error.message || 'Failed to send invitation');
+    } finally {
+      setIsInviting(false);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!message.trim()) return;
+
+    setIsSending(true);
+    try {
+      await addConversationMessage(idea.id, message.trim());
+      setMessage('');
+      loadConversations();
+    } catch (error: any) {
+      notify.error('Failed to send message');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleShare = async () => {
+    setIsSharing(true);
+    try {
+      const response = await fetch('/api/share-idea', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ideaId: idea.id,
+          makePublic: true,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+
+      setShareUrl(data.shareUrl);
+      notify.success('Idea is now shareable!');
+    } catch (error: any) {
+      notify.error(error.message || 'Failed to share idea');
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
+  const handleCoverSelect = async (coverUrl: string) => {
+    try {
+      await updateIdea(idea.id, {
+        cover_image_url: coverUrl,
+        cover_image_type: 'system',
+      });
+      notify.success('Cover updated!');
+      setShowCoverSelector(false);
+      window.location.reload(); // Refresh to show new cover
+    } catch (error: any) {
+      notify.error('Failed to update cover');
+    }
+  };
+
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      notify.error('Please select an image file');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      notify.error('File size must be less than 5MB');
+      return;
+    }
+
+    setIsUploadingCover(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('ideaId', idea.id);
+
+      const response = await fetch('/api/upload-cover', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+
+      notify.success('Cover uploaded successfully!');
+      setShowCoverSelector(false);
+      window.location.reload();
+    } catch (error: any) {
+      notify.error(error.message || 'Failed to upload cover');
+    } finally {
+      setIsUploadingCover(false);
+    }
+  };
+
+  const copyShareUrl = async () => {
+    if (!shareUrl) {
+      await handleShare();
+      return;
+    }
+    await navigator.clipboard.writeText(shareUrl);
+    notify.success('Link copied to clipboard!');
+  };
+
+  const twitterShareUrl = shareUrl 
+    ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(idea.formatted_idea?.title || 'Check out this idea!')}&url=${encodeURIComponent(shareUrl)}`
+    : null;
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden bg-white">
+      {/* Header */}
+      <div className="flex items-start justify-between p-6 pb-4 flex-shrink-0 border-b border-gray-200">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-2">
+            <Sparkles className="w-5 h-5 text-[#4780C6]" />
+            <h2 className="text-2xl font-bold text-gray-900">
+              {idea.formatted_idea?.title || 'Generated Idea'}
+            </h2>
+          </div>
+          <p className="text-sm text-gray-500 mb-1">
+            <span className="font-medium">Prompt:</span> {idea.prompt}
+          </p>
+          <div className="flex items-center gap-4 text-xs text-gray-400">
+            <span>{new Date(idea.created_at).toLocaleString()}</span>
+            {viewers.length > 0 && (
+              <span className="flex items-center gap-1">
+                <Eye className="w-3 h-3" />
+                {viewers.length} {viewers.length === 1 ? 'viewer' : 'viewers'}
+              </span>
+            )}
+          </div>
+        </div>
+        <button
+          onClick={onClose}
+          className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Cover Image */}
+      {idea.cover_image_url && (
+        <div className="mb-6 flex-shrink-0 px-6">
+          <div className="relative h-48 rounded-lg overflow-hidden border border-gray-200">
+            <img
+              src={idea.cover_image_url}
+              alt="Cover"
+              className="w-full h-full object-cover"
+            />
+            {isOwner && (
+              <button
+                onClick={() => setShowCoverSelector(true)}
+                className="absolute top-2 right-2 p-2 bg-black/50 hover:bg-black/70 text-white rounded-lg transition-colors"
+              >
+                <ImageIcon className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Content - Scrollable */}
+      <div className="flex-1 overflow-y-auto px-6 pb-6">
+        {idea.formatted_idea?.title && (
+          <div className="space-y-6">
+            {idea.formatted_idea.description && (
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">Description</h3>
+                <p className="text-gray-600 leading-relaxed">{idea.formatted_idea.description}</p>
+              </div>
+            )}
+
+            {idea.formatted_idea.features && idea.formatted_idea.features.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">Key Features</h3>
+                <ul className="space-y-2">
+                  {idea.formatted_idea.features.map((feature, idx) => (
+                    <li key={idx} className="flex items-start gap-2 text-gray-600">
+                      <span className="text-[#4780C6] mt-1">•</span>
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {idea.formatted_idea.useCases && idea.formatted_idea.useCases.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">Use Cases</h3>
+                <ul className="space-y-2">
+                  {idea.formatted_idea.useCases.map((useCase, idx) => (
+                    <li key={idx} className="flex items-start gap-2 text-gray-600">
+                      <span className="text-[#4780C6] mt-1">•</span>
+                      <span>{useCase}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {idea.formatted_idea.tags && idea.formatted_idea.tags.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">Tags</h3>
+                <div className="flex flex-wrap gap-2">
+                  {idea.formatted_idea.tags.map((tag, idx) => (
+                    <span
+                      key={idx}
+                      className="px-3 py-1 bg-[#4780C6]/10 text-[#4780C6] rounded-full text-xs font-medium"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {!idea.formatted_idea?.title && (
+          <div className="prose prose-sm max-w-none">
+            <div className="whitespace-pre-wrap text-gray-700 leading-relaxed">
+              {idea.idea}
+            </div>
+          </div>
+        )}
+
+        {/* Conversations */}
+        <div className="mt-8 pt-6 border-t border-gray-200">
+          <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+            <MessageSquare className="w-4 h-4" />
+            Conversation ({conversations.length})
+          </h3>
+          <div className="space-y-3 max-h-64 overflow-y-auto mb-4">
+            {conversations.map((conv) => (
+              <div key={conv.id} className="flex gap-3">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
+                  {conv.user?.user_metadata?.firstName?.charAt(0) || conv.user?.email?.charAt(0) || 'U'}
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-medium text-gray-900">
+                      {conv.user?.user_metadata?.firstName || conv.user?.email?.split('@')[0] || 'User'}
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      {new Date(conv.created_at).toLocaleTimeString()}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-600">{conv.message}</p>
+                </div>
+              </div>
+            ))}
+            <div ref={messagesEndRef} />
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendMessage();
+                }
+              }}
+              placeholder="Add a comment or suggestion..."
+              className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4780C6] focus:border-transparent text-sm"
+            />
+            <button
+              onClick={handleSendMessage}
+              disabled={!message.trim() || isSending}
+              className="px-4 py-2 bg-[#4780C6] text-white rounded-lg hover:bg-[#4780C6]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Actions - Fixed at bottom */}
+      <div className="flex-shrink-0 pt-6 px-6 pb-6 border-t border-gray-200 space-y-4">
+        {/* Collaboration Section */}
+        {isOwner && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                <Users className="w-4 h-4" />
+                Collaborators ({collaborations.length})
+              </h3>
+              <button
+                onClick={() => setInviteEmail('')}
+                className="text-xs text-[#4780C6] hover:text-[#4780C6]/80"
+              >
+                {inviteEmail ? 'Cancel' : 'Invite'}
+              </button>
+            </div>
+            {inviteEmail && (
+              <div className="flex gap-2">
+                <input
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="Enter email address"
+                  className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4780C6] focus:border-transparent text-sm"
+                />
+                <select
+                  value={inviteRole}
+                  onChange={(e) => setInviteRole(e.target.value as 'collaborator' | 'viewer')}
+                  className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4780C6] focus:border-transparent text-sm"
+                >
+                  <option value="collaborator">Collaborator</option>
+                  <option value="viewer">Viewer</option>
+                </select>
+                <button
+                  onClick={handleInvite}
+                  disabled={isInviting}
+                  className="px-4 py-2 bg-[#4780C6] text-white rounded-lg hover:bg-[#4780C6]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                >
+                  {isInviting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <UserPlus className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+            )}
+            {collaborations.length > 0 && (
+              <div className="space-y-2">
+                {collaborations.map((collab) => (
+                  <div key={collab.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                    <div>
+                      <span className="text-sm text-gray-900">{collab.email}</span>
+                      <span className="text-xs text-gray-500 ml-2">({collab.role})</span>
+                    </div>
+                    <span className={`text-xs px-2 py-1 rounded ${
+                      collab.status === 'accepted' ? 'bg-green-100 text-green-700' :
+                      collab.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                      'bg-gray-100 text-gray-700'
+                    }`}>
+                      {collab.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            onClick={onConvertToProject}
+            className="flex items-center gap-2 px-4 py-2 bg-[#4780C6] text-white rounded-lg hover:bg-[#4780C6]/90 transition-colors text-sm font-medium"
+          >
+            <Rocket className="w-4 h-4" />
+            Convert to Project
+          </button>
+          <button
+            onClick={copyShareUrl}
+            className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+          >
+            {shareUrl ? (
+              <>
+                <Check className="w-4 h-4 text-green-500" />
+                Link Copied
+              </>
+            ) : (
+              <>
+                <Share2 className="w-4 h-4" />
+                Share
+              </>
+            )}
+          </button>
+          {twitterShareUrl && (
+            <a
+              href={twitterShareUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
+            >
+              <Twitter className="w-4 h-4" />
+              Share on X
+            </a>
+          )}
+          {isOwner && (
+            <>
+              <button
+                onClick={() => onDelete(idea.id)}
+                className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors text-sm font-medium"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete
+              </button>
+              <button
+                onClick={() => setShowCoverSelector(true)}
+                className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+              >
+                <ImageIcon className="w-4 h-4" />
+                Cover
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* Refine Section */}
+        <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            How would you like to refine this idea?
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={refinePrompt}
+              onChange={(e) => setRefinePrompt(e.target.value)}
+              placeholder="E.g., Make it more focused on mobile users..."
+              className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4780C6] focus:border-transparent text-sm"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  onRefine(refinePrompt);
+                }
+              }}
+            />
+            <button
+              onClick={() => onRefine(refinePrompt)}
+              disabled={!refinePrompt.trim() || isRefining}
+              className="px-4 py-2 bg-[#4780C6] text-white rounded-lg hover:bg-[#4780C6]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+            >
+              {isRefining ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Cover Selector Modal */}
+      {showCoverSelector && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900">Select Cover Image</h2>
+              <button
+                onClick={() => setShowCoverSelector(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">System Covers</h3>
+                <div className="grid grid-cols-3 gap-4">
+                  {SYSTEM_COVERS.map((cover) => (
+                    <button
+                      key={cover}
+                      onClick={() => handleCoverSelect(cover)}
+                      className="relative aspect-video rounded-lg overflow-hidden border-2 border-gray-200 hover:border-[#4780C6] transition-colors group"
+                    >
+                      <img
+                        src={cover}
+                        alt="Cover"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          // Fallback if image doesn't exist
+                          e.currentTarget.src = `https://via.placeholder.com/400x300/4780C6/ffffff?text=${cover.split('/').pop()?.replace('.jpg', '')}`;
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                        <CheckCircle2 className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">Upload Your Own</h3>
+                <label className="flex items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-[#4780C6] transition-colors">
+                  {isUploadingCover ? (
+                    <Loader2 className="w-8 h-8 animate-spin text-[#4780C6]" />
+                  ) : (
+                    <div className="text-center">
+                      <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                      <span className="text-sm text-gray-600">Click to upload or drag and drop</span>
+                      <span className="text-xs text-gray-400 block mt-1">PNG, JPG up to 5MB</span>
+                    </div>
+                  )}
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleCoverUpload}
+                    disabled={isUploadingCover}
+                  />
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+
+

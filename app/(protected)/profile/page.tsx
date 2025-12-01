@@ -22,12 +22,14 @@ import {
   Camera,
   MapPin,
   Link as LinkIcon,
+  LogOut,
 } from "lucide-react";
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { profile, isLoading } = useProfile();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const displayName =
     profile?.firstName && profile?.lastName
@@ -53,6 +55,18 @@ export default function ProfilePage() {
   const capitalizeFirst = (str?: string) => {
     if (!str) return "Not set";
     return str.charAt(0).toUpperCase() + str.slice(1);
+  };
+
+  const handleLogout = async () => {
+    if (window.confirm("Are you sure you want to log out?")) {
+      setIsLoggingOut(true);
+      try {
+        await signOut();
+      } catch (error) {
+        console.error("Error logging out:", error);
+        setIsLoggingOut(false);
+      }
+    }
   };
 
   if (isLoading) {
@@ -489,6 +503,29 @@ export default function ProfilePage() {
                 </span>
               </div>
             </div>
+          </div>
+
+          {/* Logout Section */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mt-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                <LogOut className="w-5 h-5 text-red-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Account Actions
+              </h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              Sign out of your account. You will need to log in again to access your profile and projects.
+            </p>
+            <button
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+            >
+              <LogOut className="w-4 h-4" />
+              {isLoggingOut ? "Logging out..." : "Log Out"}
+            </button>
           </div>
         </div>
       </div>

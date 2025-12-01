@@ -62,34 +62,32 @@ export default function OnboardingProfilePicturesPage() {
       if (profilePic && !profilePic.startsWith("http")) {
         try {
           profilePicUrl = await uploadImage(profilePic, "profile");
-          localStorage.setItem("onboarding_profile_pic", profilePicUrl);
         } catch (uploadError) {
           console.warn("Could not upload profile pic to storage:", uploadError);
-          // Store base64 in localStorage only (not in metadata)
-          localStorage.setItem("onboarding_profile_pic", profilePic);
+          // Use base64 as fallback
+          profilePicUrl = profilePic;
         }
       } else if (profilePic) {
         profilePicUrl = profilePic;
-        localStorage.setItem("onboarding_profile_pic", profilePic);
       }
 
       if (bannerPic && !bannerPic.startsWith("http")) {
         try {
           bannerPicUrl = await uploadImage(bannerPic, "banner");
-          localStorage.setItem("onboarding_banner_pic", bannerPicUrl);
         } catch (uploadError) {
           console.warn("Could not upload banner pic to storage:", uploadError);
-          // Store base64 in localStorage only (not in metadata)
-          localStorage.setItem("onboarding_banner_pic", bannerPic);
+          // Use base64 as fallback
+          bannerPicUrl = bannerPic;
         }
       } else if (bannerPic) {
         bannerPicUrl = bannerPic;
-        localStorage.setItem("onboarding_banner_pic", bannerPic);
       }
 
-      // Don't save images to Supabase metadata - store in localStorage only
-      // This prevents cookie size issues
-      // Images are already saved to localStorage above
+      // Save images to database
+      await saveUserProfile({
+        profilePic: profilePicUrl,
+        bannerPic: bannerPicUrl,
+      });
 
       notify.success("Pictures saved!");
       setTimeout(() => {

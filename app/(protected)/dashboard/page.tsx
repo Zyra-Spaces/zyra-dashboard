@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ProtectedRoute } from '@/components/auth/protected-route';
 import { useAuth } from '@/contexts/auth-context';
 import { useProfile } from '@/hooks/use-profile';
+import { getUserProjects, getTrendingProjects, type Project } from '@/lib/supabase/projects';
 import { 
   Home, 
   Briefcase, 
@@ -30,6 +31,31 @@ export default function DashboardPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { profile } = useProfile();
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [trendingProjects, setTrendingProjects] = useState<Project[]>([]);
+  const [isLoadingProjects, setIsLoadingProjects] = useState(true);
+
+  useEffect(() => {
+    const loadProjects = async () => {
+      try {
+        setIsLoadingProjects(true);
+        const [userProjects, trending] = await Promise.all([
+          getUserProjects(),
+          getTrendingProjects(10),
+        ]);
+        setProjects(userProjects);
+        setTrendingProjects(trending);
+      } catch (error) {
+        console.error('Error loading projects:', error);
+      } finally {
+        setIsLoadingProjects(false);
+      }
+    };
+
+    if (user) {
+      loadProjects();
+    }
+  }, [user]);
 
   const displayName = profile?.firstName && profile?.lastName
     ? `${profile.firstName} ${profile.lastName}`
@@ -90,17 +116,19 @@ export default function DashboardPage() {
                   <Bell className="w-5 h-5" />
                   <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
                 </button>
-                {profile?.profilePic ? (
-                  <img 
-                    src={profile.profilePic} 
-                    alt="Profile" 
-                    className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 cursor-pointer hover:border-[#4780C6] transition-colors"
-                  />
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white font-semibold cursor-pointer">
-                    {displayName.charAt(0).toUpperCase()}
-                  </div>
-                )}
+                <Link href="/profile" className="flex items-center">
+                  {profile?.profilePic ? (
+                    <img 
+                      src={profile.profilePic} 
+                      alt="Profile" 
+                      className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 cursor-pointer hover:border-[#4780C6] transition-colors"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white font-semibold cursor-pointer hover:ring-2 hover:ring-[#4780C6] transition-all">
+                      {displayName.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </Link>
               </div>
             </div>
           </div>
@@ -126,31 +154,31 @@ export default function DashboardPage() {
                 <div className="absolute inset-0 bg-[url('/images/banners/1.png')] opacity-10 bg-cover bg-center"></div>
                 <div className="relative">
                   <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3">
+                    <Link href="/profile" className="flex items-center gap-3 group">
                       {profile?.profilePic ? (
                         <div className="relative">
                           <img 
                             src={profile.profilePic} 
                             alt="Profile" 
-                            className="w-16 h-16 rounded-full object-cover border-4 border-white shadow-lg"
+                            className="w-16 h-16 rounded-full object-cover border-4 border-white shadow-lg group-hover:ring-2 group-hover:ring-[#4780C6] transition-all"
                           />
                           <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center border-2 border-white">
                             <CheckCircle2 className="w-3 h-3 text-white" />
                           </div>
                         </div>
                       ) : (
-                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white font-semibold text-xl border-4 border-white shadow-lg">
+                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white font-semibold text-xl border-4 border-white shadow-lg group-hover:ring-2 group-hover:ring-[#4780C6] transition-all">
                           {displayName.charAt(0).toUpperCase()}
                         </div>
                       )}
                       <div>
-                        <h3 className="font-semibold text-gray-900">{displayName}</h3>
+                        <h3 className="font-semibold text-gray-900 group-hover:text-[#4780C6] transition-colors">{displayName}</h3>
                         <div className="flex items-center gap-1 mt-1">
                           <span className="text-xs text-gray-600">•</span>
                           <span className="text-xs font-medium text-purple-600">Premium</span>
                         </div>
                       </div>
-                    </div>
+                    </Link>
                   </div>
                   <p className="text-sm text-gray-700 mb-4 italic">Perfect Dreamers Don&apos;t Sleep</p>
                   <div className="flex items-center justify-end">
@@ -170,7 +198,7 @@ export default function DashboardPage() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-600">Projects</span>
-                    <span className="font-semibold text-gray-900">23</span>
+                    <span className="font-semibold text-gray-900">{projects.length}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-600">Teams</span>
@@ -412,35 +440,40 @@ export default function DashboardPage() {
                   </button>
                 </div>
                 <div className="space-y-4">
-                  <div className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow cursor-pointer">
-                    <div className="h-24 bg-gradient-to-br from-gray-400 to-gray-600">
-                      <img 
-                        src="/images/banners/1.png" 
-                        alt="Project" 
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <div className="p-3">
-                      <h4 className="font-semibold text-sm text-gray-900 mb-1">Stone Proof</h4>
-                      <p className="text-xs text-gray-500 mb-1">by Stone Proof Labs</p>
-                      <p className="text-xs text-gray-400">2 days ago</p>
-                    </div>
-                  </div>
-
-                  <div className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow cursor-pointer">
-                    <div className="h-24 bg-gradient-to-br from-gray-400 to-gray-600">
-                      <img 
-                        src="/images/banners/1.png" 
-                        alt="Project" 
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <div className="p-3">
-                      <h4 className="font-semibold text-sm text-gray-900 mb-1">Stone Proof</h4>
-                      <p className="text-xs text-gray-500 mb-1">by Patrick Ihirwe</p>
-                      <p className="text-xs text-gray-400">2 days ago</p>
-                    </div>
-                  </div>
+                  {isLoadingProjects ? (
+                    <div className="text-center py-4 text-sm text-gray-500">Loading projects...</div>
+                  ) : projects.length === 0 ? (
+                    <div className="text-center py-4 text-sm text-gray-500">No projects yet</div>
+                  ) : (
+                    projects.slice(0, 5).map((project) => (
+                      <Link
+                        key={project.id}
+                        href={`/projects/${project.id}`}
+                        className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow cursor-pointer block"
+                      >
+                        <div className="h-24 bg-gradient-to-br from-gray-400 to-gray-600">
+                          {project.cover_image_url ? (
+                            <img 
+                              src={project.cover_image_url} 
+                              alt={project.title} 
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Briefcase className="w-8 h-8 text-white opacity-50" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-3">
+                          <h4 className="font-semibold text-sm text-gray-900 mb-1 line-clamp-1">{project.title}</h4>
+                          <p className="text-xs text-gray-500 mb-1 line-clamp-1">{project.description || 'No description'}</p>
+                          <p className="text-xs text-gray-400">
+                            {new Date(project.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </Link>
+                    ))
+                  )}
                 </div>
                 <button className="w-full mt-4 text-sm text-[#4780C6] hover:text-[#4780C6]/80 font-medium">
                   View more

@@ -51,7 +51,10 @@ export default function OnboardingTeamPage() {
     
     try {
       if (validEmails.length > 0) {
-        localStorage.setItem("onboarding_team", JSON.stringify(validEmails));
+        // Save team emails to database
+        await saveUserProfile({
+          teamEmails: validEmails,
+        });
         
         // Send invitations via API
         try {
@@ -67,10 +70,6 @@ export default function OnboardingTeamPage() {
         } catch (inviteError) {
           console.warn("Could not send invitations:", inviteError);
         }
-        
-        // Don't save team emails to metadata - store in localStorage only
-        // This prevents cookie size issues
-        // Team emails are already saved to localStorage above
       }
       
       setTimeout(() => {
