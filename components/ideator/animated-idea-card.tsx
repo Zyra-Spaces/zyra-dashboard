@@ -53,7 +53,15 @@ export function AnimatedIdeaCard({ isGenerating, generatedText = '', parsedIdea,
         </div>
 
         {/* Idea Card */}
-        <div className="relative bg-white border-2 border-purple-200/50 rounded-xl shadow-lg p-6 animate-in fade-in duration-300 hover:shadow-xl transition-shadow">
+        <div 
+          className="relative bg-white border-2 border-purple-200/50 rounded-xl shadow-lg p-6 animate-in fade-in duration-300 hover:shadow-xl transition-shadow cursor-move"
+          draggable
+          onDragStart={(e) => {
+            const ideaData = JSON.stringify(parsedIdea);
+            e.dataTransfer.setData('application/json', ideaData);
+            e.dataTransfer.effectAllowed = 'move';
+          }}
+        >
           {parsedIdea.title && (
             <h3 
               className="text-xl font-bold text-gray-900 mb-3 cursor-pointer hover:text-purple-600 transition-colors"

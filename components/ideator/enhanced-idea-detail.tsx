@@ -108,7 +108,7 @@ export function EnhancedIdeaDetail({
             table: 'idea_conversations',
             filter: `idea_id=eq.${idea.id}`,
           },
-          (payload) => {
+          (_payload: any) => {
             loadConversations();
           }
         )
@@ -706,6 +706,7 @@ export function EnhancedIdeaDetail({
           </div>
         </div>
       </div>
+      </div>
 
       {/* AI Chat Panel - Right Side */}
       <div className="w-80 border-l border-gray-200 flex flex-col bg-gray-50">
@@ -744,7 +745,40 @@ export function EnhancedIdeaDetail({
           )}
         </div>
 
-        <div className="p-4 border-t border-gray-200 bg-white">
+        <div 
+          className="p-4 border-t border-gray-200 bg-white transition-colors"
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.currentTarget.classList.add('bg-purple-50');
+          }}
+          onDragLeave={(e) => {
+            e.currentTarget.classList.remove('bg-purple-50');
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.currentTarget.classList.remove('bg-purple-50');
+            try {
+              const ideaData = e.dataTransfer.getData('application/json');
+              if (ideaData) {
+                const idea = JSON.parse(ideaData);
+                const ideaText = idea.description || idea.title || idea.fullIdea || '';
+                if (ideaText) {
+                  setAiChatMessage(`Continue refining: "${ideaText.substring(0, 200)}${ideaText.length > 200 ? '...' : ''}"`);
+                  notify.success('Idea card dropped! You can now send it to AI for refinement.');
+                }
+              }
+            } catch (err) {
+              console.error('Error handling drop:', err);
+            }
+          }}
+        >
+          {aiChatHistory.length === 0 && (
+            <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-xs text-blue-700">
+                💡 <strong>Tip:</strong> Describe how you'd like to improve this idea. You can also drag idea cards from the sidebar into this chat to continue refining them.
+              </p>
+            </div>
+          )}
           <div className="flex gap-2">
             <input
               type="text"

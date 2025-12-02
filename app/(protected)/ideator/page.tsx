@@ -585,8 +585,43 @@ export default function IdeatorPage() {
                     }}
                   />
 
+                  {/* Prompt Helper Text */}
+                  {!isGenerating && conversationHistory.length === 0 && (
+                    <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                      <p className="text-xs text-purple-700">
+                        💡 <strong>Get started:</strong> Describe what kind of project idea you're looking for. You can drag idea cards from the sidebar into the input area to continue refining them.
+                      </p>
+                    </div>
+                  )}
+
                   {/* Input Area - Fixed at bottom */}
-                  <div className="bg-white border border-gray-200 rounded-xl p-4 flex-shrink-0 mt-auto">
+                  <div 
+                    className="bg-white border border-gray-200 rounded-xl p-4 flex-shrink-0 mt-auto transition-colors"
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.currentTarget.classList.add('border-purple-400', 'bg-purple-50');
+                    }}
+                    onDragLeave={(e) => {
+                      e.currentTarget.classList.remove('border-purple-400', 'bg-purple-50');
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.currentTarget.classList.remove('border-purple-400', 'bg-purple-50');
+                      try {
+                        const ideaData = e.dataTransfer.getData('application/json');
+                        if (ideaData) {
+                          const idea = JSON.parse(ideaData);
+                          const ideaText = idea.description || idea.title || idea.fullIdea || '';
+                          if (ideaText) {
+                            setPrompt(prev => prev ? `${prev}\n\nContinue refining: "${ideaText.substring(0, 200)}${ideaText.length > 200 ? '...' : ''}"` : `Continue refining: "${ideaText.substring(0, 200)}${ideaText.length > 200 ? '...' : ''}"`);
+                            notify.success('Idea card dropped! Continue refining in the input above.');
+                          }
+                        }
+                      } catch (err) {
+                        console.error('Error handling drop:', err);
+                      }
+                    }}
+                  >
                 <div className="flex items-center justify-between mb-2 px-2">
                   <span className="text-xs text-gray-500">Context managed automatically from your conversation history</span>
                   <span className="text-xs text-gray-400">{prompt.length}/3000</span>
@@ -646,7 +681,19 @@ export default function IdeatorPage() {
                           <div
                             key={idea.id}
                             onClick={() => setSelectedIdea(idea)}
-                            className={`${colorClass.bg} ${colorClass.border} border-2 rounded-lg p-4 cursor-pointer hover:shadow-lg transition-all relative ${
+                            draggable
+                            onDragStart={(e) => {
+                              const ideaData = JSON.stringify({
+                                title: idea.formatted_idea?.title,
+                                description: idea.formatted_idea?.description,
+                                features: idea.formatted_idea?.features,
+                                tags: idea.formatted_idea?.tags,
+                                fullIdea: idea.idea,
+                              });
+                              e.dataTransfer.setData('application/json', ideaData);
+                              e.dataTransfer.effectAllowed = 'move';
+                            }}
+                            className={`${colorClass.bg} ${colorClass.border} border-2 rounded-lg p-4 cursor-move hover:shadow-lg transition-all relative ${
                               selectedIdea?.id === idea.id ? 'ring-2 ring-[#4780C6] ring-offset-2' : ''
                             }`}
                           >
