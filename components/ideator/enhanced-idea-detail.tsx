@@ -327,8 +327,43 @@ export function EnhancedIdeaDetail({
     ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(idea.formatted_idea?.title || 'Check out this idea!')}&url=${encodeURIComponent(shareUrl)}`
     : null;
 
+  const [aiChatMessage, setAiChatMessage] = useState('');
+  const [isAiGenerating, setIsAiGenerating] = useState(false);
+  const [aiChatHistory, setAiChatHistory] = useState<Array<{type: 'user' | 'ai', content: string}>>([]);
+
+  const handleAiChatSend = async () => {
+    if (!aiChatMessage.trim() || isAiGenerating) return;
+    
+    const userMessage = aiChatMessage.trim();
+    setAiChatMessage('');
+    setAiChatHistory(prev => [...prev, { type: 'user', content: userMessage }]);
+    setIsAiGenerating(true);
+
+    try {
+      const response = await fetch('/api/generate-idea', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: userMessage,
+          context: `Refining this idea: ${idea.idea.substring(0, 500)}...\n\nUser request: ${userMessage}`,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+
+      setAiChatHistory(prev => [...prev, { type: 'ai', content: data.idea }]);
+    } catch (error: any) {
+      notify.error(error.message || 'Failed to get AI response');
+    } finally {
+      setIsAiGenerating(false);
+    }
+  };
+
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-white">
+    <div className="flex h-full overflow-hidden bg-white">
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
       <div className="flex items-start justify-between p-6 pb-4 flex-shrink-0 border-b border-gray-200">
         <div className="flex-1">
@@ -586,7 +621,7 @@ export function EnhancedIdeaDetail({
         <div className="flex items-center gap-3 flex-wrap">
           <button
             onClick={onConvertToProject}
-            className="flex items-center gap-2 px-4 py-2 bg-[#4780C6] text-white rounded-lg hover:bg-[#4780C6]/90 transition-colors text-sm font-medium"
+            className="flex items-center gap-2 px-4 py-2 bg-[#4780C6] text-white rounded-lg hover:bg-[#4780C6]/90 active:bg-[#4780C6]/80 transition-all text-sm font-medium"
           >
             <Rocket className="w-4 h-4" />
             Convert to Project
@@ -660,9 +695,77 @@ export function EnhancedIdeaDetail({
             <button
               onClick={() => onRefine(refinePrompt)}
               disabled={!refinePrompt.trim() || isRefining}
-              className="px-4 py-2 bg-[#4780C6] text-white rounded-lg hover:bg-[#4780C6]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+              className="px-4 py-2 bg-[#4780C6] text-white rounded-lg hover:bg-[#4780C6]/90 active:bg-[#4780C6]/80 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
             >
               {isRefining ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* AI Chat Panel - Right Side */}
+      <div className="w-80 border-l border-gray-200 flex flex-col bg-gray-50">
+        <div className="p-4 border-b border-gray-200 bg-white">
+          <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-[#4780C6]" />
+            AI Refinement Chat
+          </h3>
+          <p className="text-xs text-gray-500 mt-1">Ask AI to refine or improve this idea</p>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {aiChatHistory.length === 0 && (
+            <div className="text-center text-sm text-gray-500 py-8">
+              <Sparkles className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+              <p>Start a conversation to refine your idea</p>
+            </div>
+          )}
+          {aiChatHistory.map((msg, idx) => (
+            <div key={idx} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[85%] p-3 rounded-lg text-sm ${
+                msg.type === 'user'
+                  ? 'bg-[#4780C6] text-white'
+                  : 'bg-white border border-gray-200 text-gray-800'
+              }`}>
+                <p className="whitespace-pre-wrap">{msg.content}</p>
+              </div>
+            </div>
+          ))}
+          {isAiGenerating && (
+            <div className="flex justify-start">
+              <div className="bg-white border border-gray-200 rounded-lg p-3">
+                <Loader2 className="w-4 h-4 animate-spin text-[#4780C6]" />
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="p-4 border-t border-gray-200 bg-white">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={aiChatMessage}
+              onChange={(e) => setAiChatMessage(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleAiChatSend();
+                }
+              }}
+              placeholder="Ask AI to refine..."
+              className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4780C6] focus:border-transparent text-sm"
+              disabled={isAiGenerating}
+            />
+            <button
+              onClick={handleAiChatSend}
+              disabled={!aiChatMessage.trim() || isAiGenerating}
+              className="px-4 py-2 bg-[#4780C6] text-white rounded-lg hover:bg-[#4780C6]/90 active:bg-[#4780C6]/80 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+            >
+              {isAiGenerating ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <Send className="w-4 h-4" />

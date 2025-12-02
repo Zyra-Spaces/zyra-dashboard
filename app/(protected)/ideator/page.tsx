@@ -221,8 +221,16 @@ export default function IdeatorPage() {
         });
 
         await loadIdeas();
-        setPrompt('');
+        if (!refineIdea) {
+          setPrompt('');
+        }
         setRefinePrompt('');
+        
+        // Clear parsed idea after a delay to show it briefly
+        setTimeout(() => {
+          setParsedGeneratedIdea(null);
+          setGeneratingText('');
+        }, 3000);
         
         // If refining, select the new refined idea; otherwise close modal
         if (refineIdea) {
