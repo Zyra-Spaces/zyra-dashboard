@@ -46,8 +46,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // Create collaboration
-    const collaboration = await inviteCollaborator(ideaId, email, role || 'collaborator');
+    // Create collaboration (using server client and user ID)
+    const collaboration = await inviteCollaborator(ideaId, email, role || 'collaborator', supabase, user.id);
 
     // Send invitation email (using Supabase's signInWithOtp as magic link)
     // In production, you might want to use a dedicated email service

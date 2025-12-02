@@ -35,7 +35,9 @@ import {
   Twitter,
   Link as LinkIcon,
   CheckCircle2,
+  Maximize2,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 interface EnhancedIdeaDetailProps {
   idea: Idea;
@@ -66,6 +68,7 @@ export function EnhancedIdeaDetail({
 }: EnhancedIdeaDetailProps) {
   const { user } = useAuth();
   const { profile } = useProfile();
+  const router = useRouter();
   const [collaborations, setCollaborations] = useState<IdeaCollaboration[]>([]);
   const [conversations, setConversations] = useState<IdeaConversation[]>([]);
   const [viewers, setViewers] = useState<Array<{ user_id: string; last_seen: string }>>([]);
@@ -348,12 +351,24 @@ export function EnhancedIdeaDetail({
             )}
           </div>
         </div>
-        <button
-          onClick={onClose}
-          className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-        >
-          <X className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              router.push(`/ideator/idea/${idea.id}`);
+              onClose();
+            }}
+            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            title="Open in full view"
+          >
+            <Maximize2 className="w-4 h-4" />
+          </button>
+          <button
+            onClick={onClose}
+            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Cover Image */}

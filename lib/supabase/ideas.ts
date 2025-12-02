@@ -104,6 +104,33 @@ export async function getUserIdeas(): Promise<Idea[]> {
 }
 
 /**
+ * Get a single idea by ID
+ */
+export async function getIdeaById(id: string): Promise<Idea> {
+  const { user, supabase } = await requireAuth();
+
+  const { data, error } = await supabase
+    .from('ideas')
+    .select('*')
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .single();
+
+  if (error) {
+    const errorInfo = extractErrorInfo(error);
+    const enhancedError = new Error(errorInfo.message);
+    (enhancedError as any).code = errorInfo.code;
+    throw enhancedError;
+  }
+
+  if (!data) {
+    throw new Error('Idea not found');
+  }
+
+  return data;
+}
+
+/**
  * Update an idea
  */
 export async function updateIdea(id: string, updates: Partial<Idea>): Promise<Idea> {

@@ -1,4 +1,5 @@
 import { createClient } from './client';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 export interface IdeaCollaboration {
   id: string;
@@ -30,17 +31,41 @@ export interface IdeaConversation {
 
 /**
  * Invite a user to collaborate on an idea
+ * @param ideaId - The ID of the idea
+ * @param email - The email of the user to invite
+ * @param role - The role to assign (default: 'collaborator')
+ * @param supabaseClient - Optional Supabase client (for server-side use). If not provided, uses browser client.
+ * @param userId - Optional user ID (required if using server client)
  */
 export async function inviteCollaborator(
   ideaId: string,
   email: string,
-  role: 'collaborator' | 'viewer' = 'collaborator'
+  role: 'collaborator' | 'viewer' = 'collaborator',
+  supabaseClient?: SupabaseClient,
+  userId?: string
 ): Promise<IdeaCollaboration> {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const supabase = supabaseClient || createClient();
   
-  if (!user) {
-    throw new Error('User not authenticated');
+  // Get user ID - either from parameter (server-side) or from auth (client-side)
+  let finalUserId = userId;
+  if (!finalUserId) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+    finalUserId = user.id;
+  }
+
+  // Check if collaboration already exists
+  const { data: existing } = await supabase
+    .from('idea_collaborations')
+    .select('id')
+    .eq('idea_id', ideaId)
+    .eq('email', email.toLowerCase().trim())
+    .maybeSingle();
+
+  if (existing) {
+    throw new Error('User has already been invited to this idea');
   }
 
   const { data, error } = await supabase
@@ -49,12 +74,16 @@ export async function inviteCollaborator(
       idea_id: ideaId,
       email: email.toLowerCase().trim(),
       role,
-      invited_by: user.id,
+      invited_by: finalUserId,
     })
     .select()
     .single();
 
   if (error) {
+    // Handle duplicate key error more gracefully
+    if (error.code === '23505') {
+      throw new Error('User has already been invited to this idea');
+    }
     throw error;
   }
 

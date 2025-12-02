@@ -123,7 +123,7 @@ export default function IdeatorPage() {
     const titleMatch = text.match(/\*\*Title:\*\*\s*(.+?)(?:\n|$)/i) || text.match(/^(.+?)(?:\n|$)/);
     if (titleMatch) parsed.title = titleMatch[1].trim();
     
-    const descMatch = text.match(/\*\*Description:\*\*\s*(.+?)(?:\n\n|\*\*)/is);
+    const descMatch = text.match(/\*\*Description:\*\*\s*([\s\S]+?)(?:\n\n|\*\*)/i);
     if (descMatch) parsed.description = descMatch[1].trim();
     
     const featuresMatch = text.match(/\*\*Key Features[^:]*:\*\*\s*([\s\S]+?)(?:\n\n\*\*|$)/i);
@@ -212,8 +212,26 @@ export default function IdeatorPage() {
         await loadIdeas();
         setPrompt('');
         setRefinePrompt('');
-        setSelectedIdea(null);
-        notify.success('Idea generated and saved!');
+        
+        // If refining, select the new refined idea; otherwise close modal
+        if (refineIdea) {
+          // Find and select the newly created refined idea
+          const updatedIdeas = await getUserIdeas();
+          const newRefinedIdea = updatedIdeas.find(i => 
+            i.prompt === currentPrompt.trim() && 
+            i.created_at > new Date(Date.now() - 5000).toISOString()
+          );
+          if (newRefinedIdea) {
+            setSelectedIdea(newRefinedIdea);
+            notify.success('Idea refined and saved!');
+          } else {
+            setSelectedIdea(null);
+            notify.success('Idea refined and saved!');
+          }
+        } else {
+          setSelectedIdea(null);
+          notify.success('Idea generated and saved!');
+        }
       } catch (saveError: any) {
         // Error saving to database - extract properly
         const errorInfo = extractErrorInfo(saveError);
@@ -265,8 +283,13 @@ export default function IdeatorPage() {
     }
   };
 
-  const handleRefine = () => {
+  const handleRefine = (refinePrompt: string) => {
     if (!selectedIdea) return;
+    if (!refinePrompt.trim()) {
+      notify.error('Please enter a refinement prompt');
+      return;
+    }
+    setRefinePrompt(refinePrompt);
     handleGenerate(selectedIdea);
   };
 
@@ -485,79 +508,35 @@ export default function IdeatorPage() {
               </div>
             </aside>
 
-            {/* Center Content - Pinned Notes Grid */}
+            {/* Center Content - Skeleton Card + Input */}
             <main className="col-span-6 flex flex-col min-h-0">
               {isLoading ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="w-8 h-8 animate-spin text-[#4780C6]" />
                 </div>
-              ) : ideas.length === 0 ? (
-                // Empty State
-                <div className="text-center py-12 bg-white border border-gray-200 rounded-xl">
-                  <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-[#4780C6]/20 to-purple-500/20 rounded-full mb-6">
-                    <Lightbulb className="w-10 h-10 text-[#4780C6]" />
-                  </div>
-                  <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome to Ideator</h2>
-                  <p className="text-gray-600 mb-8 max-w-md mx-auto">
-                    Get started by describing what you&apos;re looking for, and our AI will help you create innovative project ideas.
-                  </p>
-                </div>
               ) : (
-                // Pinned Notes Grid - Scrollable
-                <div className="flex flex-col flex-1 min-h-0">
-                  <div className="flex items-center justify-between mb-4 flex-shrink-0">
-                    <h2 className="text-xl font-bold text-gray-900">Your Ideas</h2>
-                    <span className="text-sm text-gray-500">{ideas.length} {ideas.length === 1 ? 'idea' : 'ideas'}</span>
-                  </div>
-                  <div className="flex-1 overflow-y-auto pr-2">
-                    <div className="grid grid-cols-2 gap-4 pb-4">
-                      {ideas.map((idea) => {
-                        const colorClass = getColorClass(idea.color);
-                        return (
-                          <div
-                            key={idea.id}
-                            onClick={() => setSelectedIdea(idea)}
-                            className={`${colorClass.bg} ${colorClass.border} border-2 rounded-lg p-5 cursor-pointer hover:shadow-lg transition-all transform hover:-translate-y-1 relative`}
-                            style={{
-                              transform: `rotate(${Math.random() * 4 - 2}deg)`,
-                            }}
-                          >
-                            <div className="absolute top-2 right-2">
-                              <Pin className={`w-4 h-4 ${colorClass.text} opacity-50`} />
-                            </div>
-                            <h3 className={`font-bold text-lg mb-2 ${colorClass.text} line-clamp-2`}>
-                              {idea.formatted_idea?.title || idea.prompt.substring(0, 50) + '...'}
-                            </h3>
-                            <p className={`text-sm mb-3 ${colorClass.text} opacity-80 line-clamp-3`}>
-                              {idea.formatted_idea?.description || idea.idea.substring(0, 120) + '...'}
-                            </p>
-                            <div className="flex items-center justify-between">
-                              <span className={`text-xs ${colorClass.text} opacity-60`}>
-                                {new Date(idea.created_at).toLocaleDateString()}
-                              </span>
-                              {idea.formatted_idea?.tags && idea.formatted_idea.tags.length > 0 && (
-                                <div className="flex gap-1">
-                                  {idea.formatted_idea.tags.slice(0, 2).map((tag, idx) => (
-                                    <span
-                                      key={idx}
-                                      className={`px-2 py-0.5 ${colorClass.accent} ${colorClass.text} rounded text-xs font-medium`}
-                                    >
-                                      {tag.substring(0, 8)}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
+                <>
+                  {/* Empty State or Welcome Message */}
+                  {ideas.length === 0 && !isGenerating && (
+                    <div className="text-center py-12 bg-white border border-gray-200 rounded-xl mb-6">
+                      <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-[#4780C6]/20 to-purple-500/20 rounded-full mb-6">
+                        <Lightbulb className="w-10 h-10 text-[#4780C6]" />
+                      </div>
+                      <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome to Ideator</h2>
+                      <p className="text-gray-600 mb-8 max-w-md mx-auto">
+                        Get started by describing what you&apos;re looking for, and our AI will help you create innovative project ideas.
+                      </p>
                     </div>
-                  </div>
-                </div>
-              )}
+                  )}
 
-              {/* Input Area - Fixed at bottom */}
-              <div className="bg-white border border-gray-200 rounded-xl p-4 flex-shrink-0 mt-6">
+                  {/* Animated Idea Skeleton Card - Above Input */}
+                  <AnimatedIdeaCard 
+                    isGenerating={isGenerating} 
+                    generatedText={generatingText}
+                  />
+
+                  {/* Input Area - Fixed at bottom */}
+                  <div className="bg-white border border-gray-200 rounded-xl p-4 flex-shrink-0 mt-auto">
                 <div className="flex items-center justify-between mb-2 px-2">
                   <span className="text-xs text-gray-500">Context managed automatically from your conversation history</span>
                   <span className="text-xs text-gray-400">{prompt.length}/3000</span>
@@ -594,42 +573,77 @@ export default function IdeatorPage() {
                   Press <kbd className="px-2 py-0.5 bg-gray-100 rounded text-xs">Ctrl/Cmd + Enter</kbd> to generate
                 </p>
               </div>
+                </>
+              )}
             </main>
 
-            {/* Right Sidebar */}
+            {/* Right Sidebar - All Idea Cards */}
             <aside className="col-span-3 flex flex-col min-h-0 space-y-6">
-              {/* Recent Ideas List */}
+              {/* Recent Ideas List with Cards */}
               <div className="bg-white border border-gray-200 rounded-xl p-5 flex flex-col flex-1 min-h-0">
                 <div className="flex items-center justify-between mb-4 flex-shrink-0">
-                  <h3 className="font-semibold text-gray-900">Recent Ideas</h3>
-                  <button className="p-1 text-gray-400 hover:text-gray-600">
-                    <MoreVertical className="w-4 h-4" />
-                  </button>
+                  <h3 className="font-semibold text-gray-900">Your Ideas</h3>
+                  <span className="text-xs text-gray-500">{ideaCount} {ideaCount === 1 ? 'idea' : 'ideas'}</span>
                 </div>
-                <div className="space-y-3 flex-1 overflow-y-auto pr-2">
-                  {ideas.slice(0, 5).map((idea) => (
-                    <div
-                      key={idea.id}
-                      onClick={() => setSelectedIdea(idea)}
-                      className={`p-3 rounded-lg border cursor-pointer transition-all flex-shrink-0 ${
-                        selectedIdea?.id === idea.id
-                          ? 'border-[#4780C6] bg-[#4780C6]/5'
-                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      <h4 className="font-medium text-sm text-gray-900 line-clamp-1 mb-1">
-                        {idea.formatted_idea?.title || idea.prompt.substring(0, 40) + '...'}
-                      </h4>
-                      <p className="text-xs text-gray-500 line-clamp-2 mb-2">
-                        {idea.formatted_idea?.description || idea.idea.substring(0, 80) + '...'}
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        {new Date(idea.created_at).toLocaleDateString()}
-                      </p>
-                    </div>
-                  ))}
-                  {ideas.length === 0 && (
-                    <p className="text-sm text-gray-500 text-center py-4">No ideas yet</p>
+                <div className="flex-1 overflow-y-auto pr-2 space-y-3">
+                  {ideas.length === 0 ? (
+                    <p className="text-sm text-gray-500 text-center py-8">No ideas yet. Start generating!</p>
+                  ) : (
+                    <>
+                      {ideas.map((idea) => {
+                        const colorClass = getColorClass(idea.color);
+                        return (
+                          <div
+                            key={idea.id}
+                            onClick={() => setSelectedIdea(idea)}
+                            className={`${colorClass.bg} ${colorClass.border} border-2 rounded-lg p-4 cursor-pointer hover:shadow-lg transition-all relative ${
+                              selectedIdea?.id === idea.id ? 'ring-2 ring-[#4780C6] ring-offset-2' : ''
+                            }`}
+                          >
+                            <div className="absolute top-2 right-2">
+                              <Pin className={`w-3.5 h-3.5 ${colorClass.text} opacity-50`} />
+                            </div>
+                            <h4 className={`font-bold text-base mb-2 ${colorClass.text} line-clamp-2`}>
+                              {idea.formatted_idea?.title || idea.prompt.substring(0, 50) + '...'}
+                            </h4>
+                            <p className={`text-xs mb-3 ${colorClass.text} opacity-80 line-clamp-2`}>
+                              {idea.formatted_idea?.description || idea.idea.substring(0, 100) + '...'}
+                            </p>
+                            <div className="flex items-center justify-between">
+                              <span className={`text-xs ${colorClass.text} opacity-60`}>
+                                {new Date(idea.created_at).toLocaleDateString()}
+                              </span>
+                              {idea.formatted_idea?.tags && idea.formatted_idea.tags.length > 0 && (
+                                <div className="flex gap-1">
+                                  {idea.formatted_idea.tags.slice(0, 2).map((tag, idx) => (
+                                    <span
+                                      key={idx}
+                                      className={`px-2 py-0.5 ${colorClass.accent} ${colorClass.text} rounded text-xs font-medium`}
+                                    >
+                                      {tag.substring(0, 8)}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {ideas.length > 0 && (
+                        <div className="pt-2 border-t border-gray-200">
+                          <button
+                            onClick={() => {
+                              // Scroll to top or could navigate to a dedicated ideas page
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
+                            className="w-full px-4 py-2.5 bg-gradient-to-r from-[#4780C6] to-blue-600 text-white rounded-lg hover:from-[#4780C6]/90 hover:to-blue-600/90 transition-all text-sm font-medium flex items-center justify-center gap-2"
+                          >
+                            <Sparkles className="w-4 h-4" />
+                            View All Ideas
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -649,11 +663,14 @@ export default function IdeatorPage() {
             >
               <EnhancedIdeaDetail
                 idea={selectedIdea}
-                onClose={() => setSelectedIdea(null)}
+                onClose={() => {
+                  setSelectedIdea(null);
+                  setRefinePrompt('');
+                }}
                 onDelete={handleDelete}
                 onRefine={handleRefine}
                 onConvertToProject={handleConvertToProject}
-                isRefining={isGenerating}
+                isRefining={isGenerating && !!refinePrompt}
               />
             </div>
           </div>
@@ -668,11 +685,6 @@ export default function IdeatorPage() {
           />
         )}
 
-        {/* Animated Idea Card - Shows during generation */}
-        <AnimatedIdeaCard 
-          isGenerating={isGenerating} 
-          generatedText={generatingText}
-        />
       </div>
     </ProtectedRoute>
   );
