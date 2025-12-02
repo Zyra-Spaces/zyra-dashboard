@@ -64,6 +64,8 @@ export default function IdeatorPage() {
   const [ideaCount, setIdeaCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [generatingText, setGeneratingText] = useState('');
+  const [parsedGeneratedIdea, setParsedGeneratedIdea] = useState<any>(null);
+  const [conversationHistory, setConversationHistory] = useState<Array<{type: 'user' | 'ai', content: string, idea?: any}>>([]);
 
   const displayName = profile?.firstName && profile?.lastName
     ? `${profile.firstName} ${profile.lastName}`
@@ -198,6 +200,15 @@ export default function IdeatorPage() {
       setGeneratingText(data.idea);
 
       const formattedIdea = parseIdea(data.idea);
+      setParsedGeneratedIdea(formattedIdea);
+      
+      // Add to conversation history
+      setConversationHistory(prev => [
+        ...prev,
+        { type: 'user', content: currentPrompt.trim() },
+        { type: 'ai', content: data.idea, idea: formattedIdea }
+      ]);
+      
       const color = getRandomColor();
       
       try {
@@ -529,10 +540,41 @@ export default function IdeatorPage() {
                     </div>
                   )}
 
+                  {/* Conversation History */}
+                  {conversationHistory.length > 0 && (
+                    <div className="space-y-4 mb-6">
+                      {conversationHistory.map((item, idx) => (
+                        <div key={idx} className={`flex ${item.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                          {item.type === 'ai' && item.idea ? (
+                            <AnimatedIdeaCard 
+                              isGenerating={false}
+                              parsedIdea={item.idea}
+                              onSelectText={(text) => {
+                                setPrompt(prev => prev ? `${prev}\n\nReference: "${text}"` : `Reference: "${text}"`);
+                              }}
+                            />
+                          ) : (
+                            <div className={`max-w-[80%] p-3 rounded-lg ${
+                              item.type === 'user' 
+                                ? 'bg-[#4780C6] text-white' 
+                                : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              <p className="text-sm">{item.content}</p>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   {/* Animated Idea Skeleton Card - Above Input */}
                   <AnimatedIdeaCard 
                     isGenerating={isGenerating} 
                     generatedText={generatingText}
+                    parsedIdea={parsedGeneratedIdea}
+                    onSelectText={(text) => {
+                      setPrompt(prev => prev ? `${prev}\n\nReference: "${text}"` : `Reference: "${text}"`);
+                    }}
                   />
 
                   {/* Input Area - Fixed at bottom */}

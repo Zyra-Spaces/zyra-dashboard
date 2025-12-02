@@ -6,9 +6,17 @@ import { Sparkles } from 'lucide-react';
 interface AnimatedIdeaCardProps {
   isGenerating: boolean;
   generatedText?: string;
+  parsedIdea?: {
+    title?: string;
+    description?: string;
+    features?: string[];
+    useCases?: string[];
+    tags?: string[];
+  };
+  onSelectText?: (text: string) => void;
 }
 
-export function AnimatedIdeaCard({ isGenerating, generatedText = '' }: AnimatedIdeaCardProps) {
+export function AnimatedIdeaCard({ isGenerating, generatedText = '', parsedIdea, onSelectText }: AnimatedIdeaCardProps) {
   const [displayedText, setDisplayedText] = useState('');
   const [currentIndex, setCurrentIndex] = useState(0);
 
@@ -31,8 +39,70 @@ export function AnimatedIdeaCard({ isGenerating, generatedText = '' }: AnimatedI
     }
   }, [currentIndex, generatedText]);
 
-  if (!isGenerating && !generatedText) {
+  if (!isGenerating && !generatedText && !parsedIdea) {
     return null;
+  }
+
+  // If we have a parsed idea, show it as a card
+  if (parsedIdea && !isGenerating) {
+    return (
+      <div className="relative w-full mb-6">
+        {/* Fog Effect Layers */}
+        <div className="absolute inset-0 -z-10 overflow-hidden rounded-xl">
+          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/15 via-blue-500/10 to-pink-500/15 rounded-xl blur-2xl animate-fog-float"></div>
+        </div>
+
+        {/* Idea Card */}
+        <div className="relative bg-white border-2 border-purple-200/50 rounded-xl shadow-lg p-6 animate-in fade-in duration-300 hover:shadow-xl transition-shadow">
+          {parsedIdea.title && (
+            <h3 
+              className="text-xl font-bold text-gray-900 mb-3 cursor-pointer hover:text-purple-600 transition-colors"
+              onClick={() => onSelectText?.(parsedIdea.title!)}
+            >
+              {parsedIdea.title}
+            </h3>
+          )}
+          {parsedIdea.description && (
+            <p 
+              className="text-gray-600 mb-4 leading-relaxed cursor-pointer hover:bg-purple-50 p-2 rounded transition-colors"
+              onClick={() => onSelectText?.(parsedIdea.description!)}
+            >
+              {parsedIdea.description}
+            </p>
+          )}
+          {parsedIdea.features && parsedIdea.features.length > 0 && (
+            <div className="mb-4">
+              <h4 className="text-sm font-semibold text-gray-700 mb-2">Key Features</h4>
+              <ul className="space-y-1">
+                {parsedIdea.features.slice(0, 3).map((feature, idx) => (
+                  <li 
+                    key={idx} 
+                    className="text-sm text-gray-600 flex items-start gap-2 cursor-pointer hover:bg-purple-50 p-1 rounded transition-colors"
+                    onClick={() => onSelectText?.(feature)}
+                  >
+                    <span className="text-purple-500 mt-1">•</span>
+                    <span className="line-clamp-1">{feature}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {parsedIdea.tags && parsedIdea.tags.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {parsedIdea.tags.slice(0, 3).map((tag, idx) => (
+                <span 
+                  key={idx}
+                  className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium cursor-pointer hover:bg-purple-200 transition-colors"
+                  onClick={() => onSelectText?.(tag)}
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
   }
 
   return (

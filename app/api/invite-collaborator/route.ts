@@ -51,21 +51,42 @@ export async function POST(request: Request) {
 
     // Send invitation email (using Supabase's signInWithOtp as magic link)
     // In production, you might want to use a dedicated email service
-    const { error: emailError } = await supabase.auth.signInWithOtp({
-      email: email.toLowerCase().trim(),
-      options: {
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/ideator?invite=${collaboration.id}`,
-        data: {
-          invitation_type: 'idea_collaboration',
-          idea_id: ideaId,
-          collaboration_id: collaboration.id,
-          inviter_name: user.user_metadata?.firstName || user.email?.split('@')[0] || 'Someone',
+    try {
+      const { error: emailError } = await supabase.auth.signInWithOtp({
+        email: email.toLowerCase().trim(),
+        options: {
+          shouldCreateUser: false, // Don't create user, just send email
+          emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/ideator?invite=${collaboration.id}`,
+          data: {
+            invitation_type: 'idea_collaboration',
+            idea_id: ideaId,
+            collaboration_id: collaboration.id,
+            inviter_name: user.user_metadata?.firstName || user.email?.split('@')[0] || 'Someone',
+          },
         },
-      },
-    });
+      });
 
-    // Note: signInWithOtp will send an email, but if the user doesn't exist, it will create an account
-    // For existing users, they'll get a magic link to accept the invitation
+      if (emailError) {
+        console.error('Email sending error:', emailError);
+        // Still return success for collaboration creation, but log the email error
+        // The collaboration is created, email might fail but user can still be manually added
+        return NextResponse.json({
+          success: true,
+          collaboration,
+          message: 'Collaboration created. Note: Email sending may have failed. Please check your Supabase email configuration.',
+          emailError: emailError.message,
+        });
+      }
+    } catch (emailErr: any) {
+      console.error('Email sending exception:', emailErr);
+      // Collaboration is still created, just email failed
+      return NextResponse.json({
+        success: true,
+        collaboration,
+        message: 'Collaboration created. Email sending failed - please check Supabase email configuration.',
+        emailError: emailErr.message,
+      });
+    }
 
     return NextResponse.json({
       success: true,
