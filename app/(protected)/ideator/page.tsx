@@ -11,6 +11,7 @@ import { saveIdea, getUserIdeas, deleteIdea, getIdeaCount, type Idea } from '@/l
 import { saveProject } from '@/lib/supabase/projects';
 import { extractErrorInfo, getErrorDebugInfo } from '@/lib/utils/error-extractor';
 import { EnhancedIdeaDetail } from '@/components/ideator/enhanced-idea-detail';
+import { AnimatedIdeaCard } from '@/components/ideator/animated-idea-card';
 import { 
   Sparkles, 
   Send, 
@@ -62,6 +63,7 @@ export default function IdeatorPage() {
   const [refinePrompt, setRefinePrompt] = useState('');
   const [ideaCount, setIdeaCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [generatingText, setGeneratingText] = useState('');
 
   const displayName = profile?.firstName && profile?.lastName
     ? `${profile.firstName} ${profile.lastName}`
@@ -161,6 +163,7 @@ export default function IdeatorPage() {
     }
 
     setIsGenerating(true);
+    setGeneratingText(''); // Reset generating text
     try {
       const context = refineIdea 
         ? `${getContext}\n\nUser wants to refine this idea: ${refineIdea.idea.substring(0, 500)}...\n\nRefinement request: ${refinePrompt}`
@@ -190,6 +193,9 @@ export default function IdeatorPage() {
         }
         throw new Error(data.error || 'Failed to generate idea');
       }
+
+      // Set the generated text for the animated card
+      setGeneratingText(data.idea);
 
       const formattedIdea = parseIdea(data.idea);
       const color = getRandomColor();
@@ -250,7 +256,12 @@ export default function IdeatorPage() {
         notify.error(errorInfo.message || 'Failed to generate idea. Please try again.');
       }
     } finally {
-      setIsGenerating(false);
+      // Keep the text visible for a moment after generation completes
+      setTimeout(() => {
+        setIsGenerating(false);
+        // Clear generating text after animation completes
+        setTimeout(() => setGeneratingText(''), 1000);
+      }, 500);
     }
   };
 
@@ -656,6 +667,12 @@ export default function IdeatorPage() {
             onCreate={handleCreateProject}
           />
         )}
+
+        {/* Animated Idea Card - Shows during generation */}
+        <AnimatedIdeaCard 
+          isGenerating={isGenerating} 
+          generatedText={generatingText}
+        />
       </div>
     </ProtectedRoute>
   );
