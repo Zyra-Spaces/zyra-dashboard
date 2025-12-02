@@ -15,7 +15,7 @@ export async function POST() {
     }
 
     // Remove ALL metadata - keep cookies minimal (only auth tokens)
-    // All profile data should be in localStorage only
+    // All profile data should be stored in database, NOT in cookies
     const metadata = user.user_metadata || {};
     const cleaned: Record<string, any> = {};
 
@@ -23,8 +23,9 @@ export async function POST() {
     const hasChanges = Object.keys(metadata).length > 0;
     
     if (hasChanges) {
+      // Clear ALL metadata to reduce JWT/cookie size
       const { error } = await supabase.auth.updateUser({
-        data: cleaned, // Empty metadata
+        data: cleaned, // Empty metadata - this reduces cookie size significantly
       });
       
       if (error) {

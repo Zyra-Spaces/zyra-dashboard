@@ -35,13 +35,6 @@ export async function isOnboardingComplete(): Promise<boolean> {
     return await checkOnboardingComplete();
   } catch (error) {
     console.error('Error checking onboarding status:', error);
-    // Fallback to localStorage for migration
-    if (typeof window !== 'undefined') {
-      const completed = localStorage.getItem('onboarding_complete');
-      if (completed === 'true') return true;
-      const details = localStorage.getItem('onboarding_details');
-      return !!details;
-    }
     return false;
   }
 }
@@ -54,10 +47,7 @@ export async function markOnboardingComplete() {
     await markComplete();
   } catch (error) {
     console.error('Error marking onboarding complete:', error);
-    // Fallback to localStorage for migration
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('onboarding_complete', 'true');
-    }
+    // No localStorage fallback - database only
   }
 }
 
@@ -70,42 +60,7 @@ export async function getUserProfile(): Promise<UserProfile | null> {
     return Object.keys(profile).length > 0 ? profile : null;
   } catch (error) {
     console.error('Error getting user profile:', error);
-    // Fallback to localStorage for migration
-    if (typeof window === 'undefined') return null;
-    
-    try {
-      const details = localStorage.getItem('onboarding_details');
-      const profilePic = localStorage.getItem('onboarding_profile_pic');
-      const bannerPic = localStorage.getItem('onboarding_banner_pic');
-      const team = localStorage.getItem('onboarding_team');
-      const socials = localStorage.getItem('onboarding_socials');
-      const firstIdea = localStorage.getItem('onboarding_first_idea');
-
-      const profile: UserProfile = {};
-
-      if (details) {
-        const detailsData = JSON.parse(details);
-        profile.firstName = detailsData.firstName;
-        profile.lastName = detailsData.lastName;
-        profile.username = detailsData.username;
-        profile.dateOfBirth = detailsData.dateOfBirth;
-        profile.gender = detailsData.gender;
-        profile.bio = detailsData.bio;
-        profile.occupation = detailsData.occupation;
-        profile.referralSource = detailsData.referralSource;
-      }
-
-      if (profilePic) profile.profilePic = profilePic;
-      if (bannerPic) profile.bannerPic = bannerPic;
-      if (team) profile.teamEmails = JSON.parse(team);
-      if (socials) profile.socials = JSON.parse(socials);
-      if (firstIdea) profile.firstIdea = JSON.parse(firstIdea);
-
-      return Object.keys(profile).length > 0 ? profile : null;
-    } catch (parseError) {
-      console.error('Error parsing user profile from localStorage:', parseError);
-      return null;
-    }
+    return null;
   }
 }
 
@@ -134,17 +89,7 @@ export async function clearOnboardingData() {
   } catch (error) {
     console.error('Error clearing onboarding data from database:', error);
   }
-
-  // Also clear localStorage for migration
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem('onboarding_complete');
-    localStorage.removeItem('onboarding_details');
-    localStorage.removeItem('onboarding_profile_pic');
-    localStorage.removeItem('onboarding_banner_pic');
-    localStorage.removeItem('onboarding_team');
-    localStorage.removeItem('onboarding_socials');
-    localStorage.removeItem('onboarding_first_idea');
-  }
+  // No localStorage - database only
 }
 
 export interface OnboardingProgress {
@@ -195,34 +140,14 @@ export async function getOnboardingProgress(): Promise<OnboardingProgress> {
     };
   } catch (error) {
     console.error('Error getting onboarding progress:', error);
-    // Fallback to localStorage
-    if (typeof window === 'undefined') {
-      return {
-        details: false,
-        profilePictures: false,
-        team: false,
-        socials: false,
-        firstIdea: false,
-        completedSteps: 0,
-        totalSteps: 5,
-      };
-    }
-
-    const details = !!localStorage.getItem('onboarding_details');
-    const profilePictures = !!(localStorage.getItem('onboarding_profile_pic') || localStorage.getItem('onboarding_banner_pic'));
-    const team = !!localStorage.getItem('onboarding_team');
-    const socials = !!localStorage.getItem('onboarding_socials');
-    const firstIdea = !!localStorage.getItem('onboarding_first_idea');
-
-    const completedSteps = [details, profilePictures, team, socials, firstIdea].filter(Boolean).length;
-
+    // Return default progress if database check fails
     return {
-      details,
-      profilePictures,
-      team,
-      socials,
-      firstIdea,
-      completedSteps,
+      details: false,
+      profilePictures: false,
+      team: false,
+      socials: false,
+      firstIdea: false,
+      completedSteps: 0,
       totalSteps: 5,
     };
   }

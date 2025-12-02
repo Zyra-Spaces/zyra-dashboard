@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Edit3 } from 'lucide-react';
 
 interface AnimatedIdeaCardProps {
   isGenerating: boolean;
@@ -14,9 +14,12 @@ interface AnimatedIdeaCardProps {
     tags?: string[];
   };
   onSelectText?: (text: string) => void;
+  onEdit?: (ideaId: string, content: string) => void;
+  ideaId?: string | null;
+  rawContent?: string;
 }
 
-export function AnimatedIdeaCard({ isGenerating, generatedText = '', parsedIdea, onSelectText }: AnimatedIdeaCardProps) {
+export function AnimatedIdeaCard({ isGenerating, generatedText = '', parsedIdea, onSelectText, onEdit, ideaId, rawContent }: AnimatedIdeaCardProps) {
   const [displayedText, setDisplayedText] = useState('');
   const [currentIndex, setCurrentIndex] = useState(0);
 
@@ -62,6 +65,26 @@ export function AnimatedIdeaCard({ isGenerating, generatedText = '', parsedIdea,
             e.dataTransfer.effectAllowed = 'move';
           }}
         >
+          {/* Edit Button */}
+          {onEdit && ideaId && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                // Use rawContent if available, otherwise reconstruct from parsedIdea
+                const contentToEdit = rawContent || [
+                  parsedIdea.title ? `**Title:** ${parsedIdea.title}` : '',
+                  parsedIdea.description ? `**Description:**\n${parsedIdea.description}` : '',
+                  parsedIdea.features?.length ? `**Key Features:**\n${parsedIdea.features.map(f => `- ${f}`).join('\n')}` : '',
+                  parsedIdea.tags?.length ? `**Tags:** ${parsedIdea.tags.join(', ')}` : '',
+                ].filter(Boolean).join('\n\n');
+                onEdit(ideaId, contentToEdit);
+              }}
+              className="absolute top-4 right-4 p-2 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg transition-colors z-10"
+              title="Edit idea"
+            >
+              <Edit3 className="w-4 h-4" />
+            </button>
+          )}
           {parsedIdea.title && (
             <h3 
               className="text-xl font-bold text-gray-900 mb-3 cursor-pointer hover:text-purple-600 transition-colors"

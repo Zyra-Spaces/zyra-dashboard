@@ -135,7 +135,7 @@ export default function EditProfilePage() {
         updateField("bannerPic", url);
       }
     } catch (uploadError) {
-      console.warn("Could not upload to storage, keeping base64 in localStorage only:", uploadError);
+      console.warn("Could not upload to storage:", uploadError);
       // Keep base64 in form state but don't save to metadata
     }
   }, [updateField]);

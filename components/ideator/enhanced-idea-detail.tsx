@@ -329,7 +329,11 @@ export function EnhancedIdeaDetail({
 
   const [aiChatMessage, setAiChatMessage] = useState('');
   const [isAiGenerating, setIsAiGenerating] = useState(false);
-  const [aiChatHistory, setAiChatHistory] = useState<Array<{type: 'user' | 'ai', content: string}>>([]);
+  const [aiChatHistory, setAiChatHistory] = useState<Array<{type: 'user' | 'ai', content: string, idea?: any}>>([]);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [selectedText, setSelectedText] = useState<string>('');
+  const [selectionPosition, setSelectionPosition] = useState<{x: number, y: number} | null>(null);
+  const [pendingRefinement, setPendingRefinement] = useState<{content: string, originalIdea: Idea} | null>(null);
 
   const handleAiChatSend = async () => {
     if (!aiChatMessage.trim() || isAiGenerating) return;
@@ -352,7 +356,40 @@ export function EnhancedIdeaDetail({
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
 
-      setAiChatHistory(prev => [...prev, { type: 'ai', content: data.idea }]);
+      // Parse the idea
+      const parseIdea = (text: string) => {
+        const parsed: any = {};
+        const titleMatch = text.match(/\*\*Title:\*\*\s*(.+?)(?:\n|$)/i) || text.match(/^(.+?)(?:\n|$)/);
+        if (titleMatch) parsed.title = titleMatch[1].trim();
+        const descMatch = text.match(/\*\*Description:\*\*\s*([\s\S]+?)(?:\n\n|\*\*)/i);
+        if (descMatch) parsed.description = descMatch[1].trim();
+        const featuresMatch = text.match(/\*\*Key Features[^:]*:\*\*\s*([\s\S]+?)(?:\n\n\*\*|$)/i);
+        if (featuresMatch) {
+          parsed.features = featuresMatch[1]
+            .split(/\n[-•*]\s*/)
+            .filter(f => f.trim().length > 0)
+            .map(f => f.trim().replace(/^[-•*]\s*/, ''));
+        }
+        const useCasesMatch = text.match(/\*\*Potential Use Cases[^:]*:\*\*\s*([\s\S]+?)(?:\n\n\*\*|$)/i);
+        if (useCasesMatch) {
+          parsed.useCases = useCasesMatch[1]
+            .split(/\n[-•*]\s*/)
+            .filter(u => u.trim().length > 0)
+            .map(u => u.trim().replace(/^[-•*]\s*/, ''));
+        }
+        const tagsMatch = text.match(/\*\*Suggested Tags[^:]*:\*\*\s*(.+?)(?:\n\n|$)/i);
+        if (tagsMatch) {
+          parsed.tags = tagsMatch[1]
+            .split(/[,•]/)
+            .map(t => t.trim())
+            .filter(t => t.length > 0);
+        }
+        return parsed;
+      };
+
+      const parsedIdea = parseIdea(data.idea);
+      setAiChatHistory(prev => [...prev, { type: 'ai', content: data.idea, idea: parsedIdea }]);
+      setPendingRefinement({ content: data.idea, originalIdea: idea });
     } catch (error: any) {
       notify.error(error.message || 'Failed to get AI response');
     } finally {
@@ -428,7 +465,7 @@ export function EnhancedIdeaDetail({
       )}
 
       {/* Content - Scrollable */}
-      <div className="flex-1 overflow-y-auto px-6 pb-6">
+      <div className="flex-1 overflow-y-auto px-6 pb-6 min-h-0">
         {idea.formatted_idea?.title && (
           <div className="space-y-6">
             {idea.formatted_idea.description && (
@@ -445,7 +482,7 @@ export function EnhancedIdeaDetail({
                   {idea.formatted_idea.features.map((feature, idx) => (
                     <li key={idx} className="flex items-start gap-2 text-gray-600">
                       <span className="text-[#4780C6] mt-1">•</span>
-                      <span>{feature}</span>
+                      <span className="select-text">{feature}</span>
                     </li>
                   ))}
                 </ul>
@@ -459,7 +496,7 @@ export function EnhancedIdeaDetail({
                   {idea.formatted_idea.useCases.map((useCase, idx) => (
                     <li key={idx} className="flex items-start gap-2 text-gray-600">
                       <span className="text-[#4780C6] mt-1">•</span>
-                      <span>{useCase}</span>
+                      <span className="select-text">{useCase}</span>
                     </li>
                   ))}
                 </ul>
@@ -486,9 +523,43 @@ export function EnhancedIdeaDetail({
 
         {!idea.formatted_idea?.title && (
           <div className="prose prose-sm max-w-none">
-            <div className="whitespace-pre-wrap text-gray-700 leading-relaxed">
+            <div className="whitespace-pre-wrap text-gray-700 leading-relaxed select-text">
               {idea.idea}
             </div>
+          </div>
+        )}
+
+        {/* Text Selection Tooltip */}
+        {selectedText && selectionPosition && (
+          <div
+            className="fixed z-50 bg-gray-900 text-white px-3 py-2 rounded-lg shadow-lg text-sm flex items-center gap-2"
+            style={{
+              left: `${selectionPosition.x}px`,
+              top: `${selectionPosition.y}px`,
+              transform: 'translateX(-50%) translateY(-100%)',
+            }}
+            onMouseDown={(e) => e.preventDefault()}
+          >
+            <button
+              onClick={() => {
+                setAiChatMessage(prev => prev ? `${prev}\n\n"${selectedText}"` : `"${selectedText}"`);
+                setSelectedText('');
+                setSelectionPosition(null);
+                notify.success('Text added to chat');
+              }}
+              className="hover:bg-gray-700 px-2 py-1 rounded transition-colors"
+            >
+              Add to chat
+            </button>
+            <button
+              onClick={() => {
+                setSelectedText('');
+                setSelectionPosition(null);
+              }}
+              className="hover:bg-gray-700 px-2 py-1 rounded transition-colors"
+            >
+              ✕
+            </button>
           </div>
         )}
 
@@ -549,7 +620,7 @@ export function EnhancedIdeaDetail({
       </div>
 
       {/* Actions - Fixed at bottom */}
-      <div className="flex-shrink-0 pt-6 px-6 pb-6 border-t border-gray-200 space-y-4">
+      <div className="flex-shrink-0 pt-6 px-6 pb-6 border-t border-gray-200 space-y-4 bg-white">
         {/* Collaboration Section */}
         {isOwner && (
           <div className="space-y-3">
@@ -559,43 +630,59 @@ export function EnhancedIdeaDetail({
                 Collaborators ({collaborations.length})
               </h3>
               <button
-                onClick={() => setInviteEmail('')}
-                className="text-xs text-[#4780C6] hover:text-[#4780C6]/80"
+                onClick={() => {
+                  if (inviteEmail && inviteEmail.trim()) {
+                    setInviteEmail('');
+                  } else {
+                    setInviteEmail('');
+                    // Trigger input to show by setting a space then clearing it
+                    setTimeout(() => {
+                      const input = document.querySelector('input[type="email"][placeholder="Enter email address"]') as HTMLInputElement;
+                      if (input) {
+                        input.focus();
+                      }
+                    }, 0);
+                  }
+                }}
+                className="text-xs text-[#4780C6] hover:text-[#4780C6]/80 transition-colors"
               >
-                {inviteEmail ? 'Cancel' : 'Invite'}
+                {inviteEmail && inviteEmail.trim() ? 'Cancel' : 'Invite'}
               </button>
             </div>
-            {inviteEmail && (
-              <div className="flex gap-2">
-                <input
-                  type="email"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  placeholder="Enter email address"
-                  className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4780C6] focus:border-transparent text-sm"
-                />
-                <select
-                  value={inviteRole}
-                  onChange={(e) => setInviteRole(e.target.value as 'collaborator' | 'viewer')}
-                  className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4780C6] focus:border-transparent text-sm"
-                >
-                  <option value="collaborator">Collaborator</option>
-                  <option value="viewer">Viewer</option>
-                </select>
-                <button
-                  onClick={handleInvite}
-                  disabled={isInviting}
-                  className="px-4 py-2 bg-[#4780C6] text-white rounded-lg hover:bg-[#4780C6]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
-                >
-                  {isInviting ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <UserPlus className="w-4 h-4" />
-                  )}
-                </button>
-              </div>
-            )}
-            {collaborations.length > 0 && (
+            <div className="flex gap-2">
+              <input
+                type="email"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                placeholder="Enter email address"
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4780C6] focus:border-transparent text-sm"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && inviteEmail.trim()) {
+                    handleInvite();
+                  }
+                }}
+              />
+              <select
+                value={inviteRole}
+                onChange={(e) => setInviteRole(e.target.value as 'collaborator' | 'viewer')}
+                className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4780C6] focus:border-transparent text-sm"
+              >
+                <option value="collaborator">Collaborator</option>
+                <option value="viewer">Viewer</option>
+              </select>
+              <button
+                onClick={handleInvite}
+                disabled={isInviting || !inviteEmail.trim()}
+                className="px-4 py-2 bg-[#4780C6] text-white rounded-lg hover:bg-[#4780C6]/90 active:bg-[#4780C6]/80 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+              >
+                {isInviting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <UserPlus className="w-4 h-4" />
+                )}
+              </button>
+            </div>
+            {collaborations.length > 0 ? (
               <div className="space-y-2">
                 {collaborations.map((collab) => (
                   <div key={collab.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
@@ -603,17 +690,13 @@ export function EnhancedIdeaDetail({
                       <span className="text-sm text-gray-900">{collab.email}</span>
                       <span className="text-xs text-gray-500 ml-2">({collab.role})</span>
                     </div>
-                    <span className={`text-xs px-2 py-1 rounded ${
-                      collab.status === 'accepted' ? 'bg-green-100 text-green-700' :
-                      collab.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
-                      'bg-gray-100 text-gray-700'
-                    }`}>
+                    <span className={`text-xs px-2 py-1 rounded ${collab.status === 'accepted' ? 'bg-green-100 text-green-700' : collab.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'}`}>
                       {collab.status}
                     </span>
                   </div>
                 ))}
               </div>
-            )}
+            ) : null}
           </div>
         )}
 
@@ -709,7 +792,7 @@ export function EnhancedIdeaDetail({
       </div>
 
       {/* AI Chat Panel - Right Side */}
-      <div className="w-80 border-l border-gray-200 flex flex-col bg-gray-50">
+      <div className="w-80 border-l border-gray-200 flex flex-col bg-gray-50 flex-shrink-0 h-full">
         <div className="p-4 border-b border-gray-200 bg-white">
           <h3 className="font-semibold text-gray-900 flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-[#4780C6]" />
@@ -718,7 +801,7 @@ export function EnhancedIdeaDetail({
           <p className="text-xs text-gray-500 mt-1">Ask AI to refine or improve this idea</p>
         </div>
         
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
           {aiChatHistory.length === 0 && (
             <div className="text-center text-sm text-gray-500 py-8">
               <Sparkles className="w-8 h-8 mx-auto mb-2 text-gray-400" />
@@ -732,7 +815,74 @@ export function EnhancedIdeaDetail({
                   ? 'bg-[#4780C6] text-white'
                   : 'bg-white border border-gray-200 text-gray-800'
               }`}>
-                <p className="whitespace-pre-wrap">{msg.content}</p>
+                {msg.type === 'ai' && msg.idea ? (
+                  <div>
+                    <p className="whitespace-pre-wrap mb-3">{msg.content}</p>
+                    {idx === aiChatHistory.length - 1 && pendingRefinement && (
+                      <div className="mt-3 pt-3 border-t border-gray-200 flex gap-2">
+                        <button
+                          onClick={async () => {
+                            try {
+                              const parseIdea = (text: string) => {
+                                const parsed: any = {};
+                                const titleMatch = text.match(/\*\*Title:\*\*\s*(.+?)(?:\n|$)/i) || text.match(/^(.+?)(?:\n|$)/);
+                                if (titleMatch) parsed.title = titleMatch[1].trim();
+                                const descMatch = text.match(/\*\*Description:\*\*\s*([\s\S]+?)(?:\n\n|\*\*)/i);
+                                if (descMatch) parsed.description = descMatch[1].trim();
+                                const featuresMatch = text.match(/\*\*Key Features[^:]*:\*\*\s*([\s\S]+?)(?:\n\n\*\*|$)/i);
+                                if (featuresMatch) {
+                                  parsed.features = featuresMatch[1]
+                                    .split(/\n[-•*]\s*/)
+                                    .filter(f => f.trim().length > 0)
+                                    .map(f => f.trim().replace(/^[-•*]\s*/, ''));
+                                }
+                                const useCasesMatch = text.match(/\*\*Potential Use Cases[^:]*:\*\*\s*([\s\S]+?)(?:\n\n\*\*|$)/i);
+                                if (useCasesMatch) {
+                                  parsed.useCases = useCasesMatch[1]
+                                    .split(/\n[-•*]\s*/)
+                                    .filter(u => u.trim().length > 0)
+                                    .map(u => u.trim().replace(/^[-•*]\s*/, ''));
+                                }
+                                const tagsMatch = text.match(/\*\*Suggested Tags[^:]*:\*\*\s*(.+?)(?:\n\n|$)/i);
+                                if (tagsMatch) {
+                                  parsed.tags = tagsMatch[1]
+                                    .split(/[,•]/)
+                                    .map(t => t.trim())
+                                    .filter(t => t.length > 0);
+                                }
+                                return parsed;
+                              };
+                              const formattedIdea = parseIdea(pendingRefinement.content);
+                              await updateIdea(idea.id, {
+                                idea: pendingRefinement.content,
+                                formatted_idea: formattedIdea,
+                              });
+                              notify.success('Refinement accepted! Idea updated.');
+                              setPendingRefinement(null);
+                              window.location.reload();
+                            } catch (error: any) {
+                              notify.error('Failed to accept refinement');
+                            }
+                          }}
+                          className="flex-1 px-3 py-1.5 bg-green-500 text-white rounded text-xs font-medium hover:bg-green-600 transition-colors"
+                        >
+                          ✓ Accept
+                        </button>
+                        <button
+                          onClick={() => {
+                            setPendingRefinement(null);
+                            notify.info('Refinement rejected');
+                          }}
+                          className="flex-1 px-3 py-1.5 bg-gray-200 text-gray-700 rounded text-xs font-medium hover:bg-gray-300 transition-colors"
+                        >
+                          ✕ Reject
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="whitespace-pre-wrap">{msg.content}</p>
+                )}
               </div>
             </div>
           ))}
@@ -745,18 +895,26 @@ export function EnhancedIdeaDetail({
           )}
         </div>
 
+        {/* Drop Zone Above Input */}
         <div 
-          className="p-4 border-t border-gray-200 bg-white transition-colors"
+          className={`mx-4 mb-2 p-3 border-2 border-dashed rounded-lg transition-all ${
+            isDraggingOver 
+              ? 'border-purple-400 bg-purple-50 scale-105' 
+              : 'border-transparent bg-transparent'
+          }`}
           onDragOver={(e) => {
             e.preventDefault();
-            e.currentTarget.classList.add('bg-purple-50');
+            e.stopPropagation();
+            setIsDraggingOver(true);
           }}
           onDragLeave={(e) => {
-            e.currentTarget.classList.remove('bg-purple-50');
+            e.preventDefault();
+            setIsDraggingOver(false);
           }}
           onDrop={(e) => {
             e.preventDefault();
-            e.currentTarget.classList.remove('bg-purple-50');
+            e.stopPropagation();
+            setIsDraggingOver(false);
             try {
               const ideaData = e.dataTransfer.getData('application/json');
               if (ideaData) {
@@ -764,7 +922,7 @@ export function EnhancedIdeaDetail({
                 const ideaText = idea.description || idea.title || idea.fullIdea || '';
                 if (ideaText) {
                   setAiChatMessage(`Continue refining: "${ideaText.substring(0, 200)}${ideaText.length > 200 ? '...' : ''}"`);
-                  notify.success('Idea card dropped! You can now send it to AI for refinement.');
+                  notify.success('Idea card dropped! Continue the conversation below.');
                 }
               }
             } catch (err) {
@@ -772,10 +930,18 @@ export function EnhancedIdeaDetail({
             }
           }}
         >
+          {isDraggingOver && (
+            <p className="text-xs text-center text-purple-600 font-medium">
+              Drop idea here to continue conversation
+            </p>
+          )}
+        </div>
+
+        <div className="p-4 border-t border-gray-200 bg-white flex-shrink-0">
           {aiChatHistory.length === 0 && (
             <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-xs text-blue-700">
-                💡 <strong>Tip:</strong> Describe how you'd like to improve this idea. You can also drag idea cards from the sidebar into this chat to continue refining them.
+                💡 <strong>Tip:</strong> Describe how you'd like to improve this idea. You can also drag idea cards from the sidebar into the drop zone above to continue refining them.
               </p>
             </div>
           )}

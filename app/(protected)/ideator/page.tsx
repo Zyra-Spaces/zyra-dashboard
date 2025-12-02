@@ -7,11 +7,12 @@ import { ProtectedRoute } from '@/components/auth/protected-route';
 import { useAuth } from '@/contexts/auth-context';
 import { useProfile } from '@/hooks/use-profile';
 import { InlineNotification, notify } from '@/components/ui/inline-notification';
-import { saveIdea, getUserIdeas, deleteIdea, getIdeaCount, type Idea } from '@/lib/supabase/ideas';
+import { saveIdea, getUserIdeas, deleteIdea, getIdeaCount, updateIdea, type Idea } from '@/lib/supabase/ideas';
 import { saveProject } from '@/lib/supabase/projects';
 import { extractErrorInfo, getErrorDebugInfo } from '@/lib/utils/error-extractor';
 import { EnhancedIdeaDetail } from '@/components/ideator/enhanced-idea-detail';
 import { AnimatedIdeaCard } from '@/components/ideator/animated-idea-card';
+import { RichTextEditor } from '@/components/ideator/rich-text-editor';
 import { 
   Sparkles, 
   Send, 
@@ -66,6 +67,8 @@ export default function IdeatorPage() {
   const [generatingText, setGeneratingText] = useState('');
   const [parsedGeneratedIdea, setParsedGeneratedIdea] = useState<any>(null);
   const [conversationHistory, setConversationHistory] = useState<Array<{type: 'user' | 'ai', content: string, idea?: any}>>([]);
+  const [editingIdeaId, setEditingIdeaId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState<string>('');
 
   const displayName = profile?.firstName && profile?.lastName
     ? `${profile.firstName} ${profile.lastName}`
@@ -576,14 +579,92 @@ export default function IdeatorPage() {
                   )}
 
                   {/* Animated Idea Skeleton Card - Above Input */}
-                  <AnimatedIdeaCard 
-                    isGenerating={isGenerating} 
-                    generatedText={generatingText}
-                    parsedIdea={parsedGeneratedIdea}
-                    onSelectText={(text) => {
-                      setPrompt(prev => prev ? `${prev}\n\nReference: "${text}"` : `Reference: "${text}"`);
-                    }}
-                  />
+                  {!editingIdeaId && (
+                    <AnimatedIdeaCard 
+                      isGenerating={isGenerating} 
+                      generatedText={generatingText}
+                      parsedIdea={parsedGeneratedIdea}
+                      onSelectText={(text) => {
+                        setPrompt(prev => prev ? `${prev}\n\nReference: "${text}"` : `Reference: "${text}"`);
+                      }}
+                      onEdit={(ideaId, content) => {
+                        setEditingIdeaId(ideaId);
+                        setEditContent(content);
+                      }}
+                      ideaId={parsedGeneratedIdea ? 'generated' : null}
+                      rawContent={generatingText}
+                    />
+                  )}
+
+                  {/* Rich Text Editor for Editing */}
+                  {editingIdeaId && (
+                    <div className="mb-6">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-sm font-semibold text-gray-700">Editing Idea</h3>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={async () => {
+                              if (editingIdeaId && editingIdeaId !== 'generated') {
+                                try {
+                                  await updateIdea(editingIdeaId, { idea: editContent });
+                                  await loadIdeas();
+                                  notify.success('Idea updated!');
+                                } catch (error) {
+                                  notify.error('Failed to update idea');
+                                }
+                              } else if (editingIdeaId === 'generated' && parsedGeneratedIdea) {
+                                // Save as new idea
+                                const color = getRandomColor();
+                                await saveIdea({
+                                  prompt: prompt.replace(/<[^>]*>/g, ''),
+                                  idea: editContent,
+                                  formatted_idea: parsedGeneratedIdea,
+                                  color: color.name,
+                                });
+                                await loadIdeas();
+                                notify.success('Idea saved!');
+                                setParsedGeneratedIdea(null);
+                                setGeneratingText('');
+                              }
+                              setEditingIdeaId(null);
+                              setEditContent('');
+                            }}
+                            className="px-3 py-1.5 bg-[#4780C6] text-white rounded-lg hover:bg-[#4780C6]/90 transition-colors text-xs font-medium"
+                          >
+                            Save Changes
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingIdeaId(null);
+                              setEditContent('');
+                            }}
+                            className="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-xs font-medium"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                      <RichTextEditor
+                        content={editContent}
+                        onChange={setEditContent}
+                        placeholder="Edit your idea..."
+                        editable={true}
+                        showToolbar={true}
+                        onSave={async (content) => {
+                          if (editingIdeaId && editingIdeaId !== 'generated') {
+                            try {
+                              await updateIdea(editingIdeaId, { idea: content });
+                              await loadIdeas();
+                              notify.success('Idea updated!');
+                              setEditingIdeaId(null);
+                            } catch (error) {
+                              notify.error('Failed to update idea');
+                            }
+                          }
+                        }}
+                      />
+                    </div>
+                  )}
 
                   {/* Prompt Helper Text */}
                   {!isGenerating && conversationHistory.length === 0 && (

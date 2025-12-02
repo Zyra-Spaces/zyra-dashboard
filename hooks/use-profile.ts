@@ -31,28 +31,14 @@ export function useProfile() {
           setIsLoading(false);
           return;
         } catch (supabaseError: any) {
-          console.warn("Could not load from database, trying localStorage fallback:", supabaseError);
-          // If it's an auth error, don't try localStorage - let ProtectedRoute handle it
+          console.warn("Could not load from database:", supabaseError);
+          // If it's an auth error, let ProtectedRoute handle it
           if (supabaseError?.message?.includes('not authenticated') || supabaseError?.message?.includes('Session expired')) {
             setIsLoading(false);
             return;
           }
-        }
-
-        // Fallback to localStorage for migration (one-time sync)
-        try {
-          const localProfile = await getLocalProfile();
-          if (localProfile) {
-            setProfile(localProfile);
-            // Sync to database in background
-            try {
-              await saveUserProfile(localProfile);
-            } catch (syncError) {
-              console.warn("Could not sync localStorage to database:", syncError);
-            }
-          }
-        } catch (localError) {
-          console.warn("Could not load from localStorage:", localError);
+          // Set empty profile if database load fails
+          setProfile({});
         }
       } catch (err: any) {
         setError(err.message || "Failed to load profile");

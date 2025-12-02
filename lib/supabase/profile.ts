@@ -59,7 +59,7 @@ export async function saveUserProfile(profile: Partial<UserProfile>) {
 
 /**
  * Get user profile from Supabase database
- * Falls back to localStorage for migration purposes
+ * Database only - no localStorage fallback
  */
 export async function getUserProfileFromSupabase(): Promise<UserProfile> {
   // Use checkAuth instead of requireAuth to avoid throwing if not authenticated
@@ -141,40 +141,8 @@ export async function getUserProfileFromSupabase(): Promise<UserProfile> {
     console.warn("Could not load profile from database:", error);
   }
 
-  // Fallback to localStorage for migration (will be removed later)
-  const profile: UserProfile = {};
-  if (typeof window !== "undefined") {
-    try {
-      const details = localStorage.getItem("onboarding_details");
-      const profilePic = localStorage.getItem("onboarding_profile_pic");
-      const bannerPic = localStorage.getItem("onboarding_banner_pic");
-      const team = localStorage.getItem("onboarding_team");
-      const socials = localStorage.getItem("onboarding_socials");
-      const firstIdea = localStorage.getItem("onboarding_first_idea");
-
-      if (details) {
-        const detailsData = JSON.parse(details);
-        profile.firstName = detailsData.firstName;
-        profile.lastName = detailsData.lastName;
-        profile.username = detailsData.username;
-        profile.dateOfBirth = detailsData.dateOfBirth;
-        profile.gender = detailsData.gender;
-        profile.bio = detailsData.bio;
-        profile.occupation = detailsData.occupation;
-        profile.referralSource = detailsData.referralSource;
-      }
-
-      if (profilePic) profile.profilePic = profilePic;
-      if (bannerPic) profile.bannerPic = bannerPic;
-      if (team) profile.teamEmails = JSON.parse(team);
-      if (socials) profile.socials = JSON.parse(socials);
-      if (firstIdea) profile.firstIdea = JSON.parse(firstIdea);
-    } catch (error) {
-      console.warn("Could not load from localStorage:", error);
-    }
-  }
-
-  return profile;
+  // Return empty profile if database load fails - no localStorage fallback
+  return {};
 }
 
 /**
@@ -221,15 +189,7 @@ export async function isOnboardingComplete(): Promise<boolean> {
     console.warn("Could not check onboarding status:", error);
   }
 
-  // Fallback to localStorage check
-  if (typeof window !== "undefined") {
-    const completed = localStorage.getItem("onboarding_complete");
-    if (completed === "true") return true;
-    
-    const details = localStorage.getItem("onboarding_details");
-    return !!details;
-  }
-
+  // No localStorage fallback - database only
   return false;
 }
 

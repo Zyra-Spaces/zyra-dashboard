@@ -15,28 +15,45 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          // CRITICAL: Only set cookies if they're actually different
-          // This prevents Supabase from writing duplicate cookies
-          const existingCookies = request.cookies.getAll();
-          const cookiesToUpdate: typeof cookiesToSet = [];
-          
-          cookiesToSet.forEach(({ name, value, options }) => {
-            const existing = existingCookies.find(c => c.name === name);
-            // Only set if value changed or cookie doesn't exist
-            if (!existing || existing.value !== value) {
-              cookiesToUpdate.push({ name, value, options });
+          // CRITICAL: Filter out chunked cookies BEFORE setting them
+          // This prevents Supabase from creating hundreds of chunked cookies
+          const filteredCookies = cookiesToSet.filter(({ name }) => {
+            // Reject ALL chunked cookies (anything with .293, .294, etc. suffix)
+            if (name.startsWith('sb-') && /\.\d+$/.test(name)) {
+              return false; // Don't set chunked cookies
             }
+            return true;
           });
           
-          // Only update if there are actual changes
-          if (cookiesToUpdate.length > 0) {
-            cookiesToUpdate.forEach(({ name, value }) =>
-              request.cookies.set(name, value)
-            );
+          // Only allow ONE base Supabase cookie
+          const supabaseCookies = filteredCookies.filter(c => c.name.startsWith('sb-'));
+          if (supabaseCookies.length > 1) {
+            // Keep only the first base cookie (no chunk suffix)
+            const baseCookie = supabaseCookies.find(c => !/\.\d+$/.test(c.name)) || supabaseCookies[0];
+            const finalCookies = [
+              ...filteredCookies.filter(c => !c.name.startsWith('sb-')),
+              baseCookie
+            ];
+            
+            // Set only the filtered cookies
+            finalCookies.forEach(({ name, value, options }) => {
+              request.cookies.set(name, value);
+            });
             supabaseResponse = NextResponse.next({
               request,
             });
-            cookiesToUpdate.forEach(({ name, value, options }) =>
+            finalCookies.forEach(({ name, value, options }) =>
+              supabaseResponse.cookies.set(name, value, options)
+            );
+          } else {
+            // Normal flow - set all cookies
+            filteredCookies.forEach(({ name, value, options }) => {
+              request.cookies.set(name, value);
+            });
+            supabaseResponse = NextResponse.next({
+              request,
+            });
+            filteredCookies.forEach(({ name, value, options }) =>
               supabaseResponse.cookies.set(name, value, options)
             );
           }
@@ -45,35 +62,27 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // Get user - but don't force refresh if session is valid
-  // Only refresh if absolutely necessary to reduce cookie writes
+  // IMPORTANT: Avoid writing any logic between createServerClient and
+  // supabase.auth.getUser(). A simple mistake could make it very hard to debug
+  // issues with users being randomly logged out.
   const {
     data: { user },
   } = await supabase.auth.getUser();
   
-  // Clean up duplicate/old Supabase cookies to prevent accumulation
+  // CRITICAL: Clean up chunked cookies AFTER getUser() to prevent 431 errors
+  // This must happen after getUser() to avoid breaking session management
   const allCookies = request.cookies.getAll();
   const supabaseCookies = allCookies.filter(c => c.name.startsWith('sb-'));
+  const chunkedCookies = supabaseCookies.filter(c => /\.\d+$/.test(c.name));
   
-  // Supabase should only have 2 cookies max:
-  // 1. sb-{project}-auth-token
-  // 2. sb-{project}-auth-token.0 (if using chunked storage)
-  // If more exist, delete old ones
-  if (supabaseCookies.length > 2) {
-    // Sort by name to keep the most recent ones
-    const sortedCookies = [...supabaseCookies].sort((a, b) => 
-      b.name.localeCompare(a.name)
-    );
-    const cookiesToKeep = sortedCookies.slice(0, 2);
-    const cookiesToDelete = sortedCookies.slice(2);
-    
-    cookiesToDelete.forEach(cookie => {
+  if (chunkedCookies.length > 0) {
+    // Delete ALL chunked cookies - they cause 431 errors
+    chunkedCookies.forEach(cookie => {
       supabaseResponse.cookies.delete(cookie.name);
       supabaseResponse.cookies.set(cookie.name, "", {
         expires: new Date(0),
         path: "/",
         maxAge: 0,
-        domain: undefined,
       });
     });
   }
@@ -137,3 +146,4 @@ export async function updateSession(request: NextRequest) {
 
   return supabaseResponse;
 }
+

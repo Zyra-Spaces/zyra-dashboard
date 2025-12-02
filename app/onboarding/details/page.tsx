@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { User } from "lucide-react";
@@ -24,6 +24,21 @@ export default function OnboardingDetailsPage() {
     referralSource: "",
   });
   const [isLoading, setIsLoading] = useState(false);
+
+  // CRITICAL: Clean up cookies immediately on page load to prevent 431 errors
+  useEffect(() => {
+    const cleanupCookies = async () => {
+      try {
+        // Clear accumulated Supabase cookies
+        await fetch("/api/clear-supabase-cookies", { method: "POST" });
+        // Clean up user metadata to reduce JWT size
+        await fetch("/api/cleanup-cookies", { method: "POST" });
+      } catch (error) {
+        // Silent fail - not critical
+      }
+    };
+    cleanupCookies();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

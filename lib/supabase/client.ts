@@ -10,19 +10,11 @@ export function createClient() {
     return browserClient;
   }
 
-  // Create client only once
+  // Create client following official Supabase SSR pattern
+  // Keep it simple - let middleware handle cookie management
   browserClient = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      auth: {
-        // Use localStorage for session storage to reduce cookie size
-        storage: typeof window !== "undefined" ? window.localStorage : undefined,
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: true,
-      },
-    }
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
   return browserClient;

@@ -145,13 +145,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           isLoading: false,
         });
 
-        // Clean up metadata on sign in to reduce cookie size
+        // CRITICAL: Clean up metadata immediately on sign in to reduce cookie size
+        // This prevents 431 errors by removing large data from JWT/cookies
         if (event === "SIGNED_IN" && session?.user) {
           try {
-            // Call cleanup API in background (non-blocking)
-            fetch("/api/cleanup-cookies", { method: "POST" }).catch(() => {
-              // Silent fail - cleanup is optional
-            });
+            // Clear all Supabase cookies first to remove chunked cookies
+            fetch("/api/clear-supabase-cookies", { method: "POST" })
+              .then(() => {
+                // Then clean up metadata to reduce JWT size
+                return fetch("/api/cleanup-cookies", { method: "POST" });
+              })
+              .then(() => {
+                // After cleanup, refresh the session to get the cleaned JWT
+                // This will create a new, smaller JWT without chunked cookies
+                supabase.auth.refreshSession();
+              })
+              .catch(() => {
+                // Silent fail - cleanup is optional but recommended
+              });
           } catch {
             // Ignore errors
           }
@@ -273,13 +284,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             router.push(isComplete ? '/dashboard' : '/onboarding/details');
           } catch (error) {
             console.error('Error checking onboarding status:', error);
-            // Fallback to localStorage check
-            if (typeof window !== "undefined") {
-              const hasDetails = localStorage.getItem("onboarding_details");
-              router.push(hasDetails ? '/dashboard' : '/onboarding/details');
-            } else {
-              router.push('/dashboard');
-            }
+            // Default to onboarding if check fails
+            router.push('/onboarding/details');
           }
         }
       } else {
@@ -371,10 +377,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('Error checking onboarding status:', error);
         // Fallback to localStorage check
         if (typeof window !== "undefined") {
-          const hasDetails = localStorage.getItem("onboarding_details");
-          if (hasDetails) {
-            router.push('/dashboard');
-          } else {
+          // Check onboarding status from database
+          try {
+            const { isOnboardingComplete } = await import('@/lib/onboarding');
+            const isComplete = await isOnboardingComplete();
+            router.push(isComplete ? '/dashboard' : '/onboarding/details');
+          } catch (error) {
+            console.error('Error checking onboarding status:', error);
             router.push('/onboarding/details');
           }
         } else {
