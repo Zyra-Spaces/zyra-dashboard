@@ -83,8 +83,10 @@ export function EnhancedIdeaDetail({
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [isSharing, setIsSharing] = useState(false);
   const [refinePrompt, setRefinePrompt] = useState('');
+  const [showActionsMenu, setShowActionsMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const presenceIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const actionsMenuRef = useRef<HTMLDivElement>(null);
 
   const isOwner = idea.user_id === user?.id;
 
@@ -352,8 +354,6 @@ export function EnhancedIdeaDetail({
   const [selectedText, setSelectedText] = useState<string>('');
   const [selectionPosition, setSelectionPosition] = useState<{x: number, y: number} | null>(null);
   const [pendingRefinement, setPendingRefinement] = useState<{content: string, originalIdea: Idea} | null>(null);
-  const [showActionsMenu, setShowActionsMenu] = useState(false);
-  const actionsMenuRef = useRef<HTMLDivElement>(null);
 
   const handleAiChatSend = async () => {
     if (!aiChatMessage.trim() || isAiGenerating) return;
@@ -715,6 +715,7 @@ export function EnhancedIdeaDetail({
               )}
             </button>
           </div>
+        </div>
         </div>
       </div>
 
