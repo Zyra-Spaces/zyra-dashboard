@@ -36,6 +36,7 @@ import {
   Link as LinkIcon,
   CheckCircle2,
   Maximize2,
+  Menu,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -145,6 +146,23 @@ export function EnhancedIdeaDetail({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [conversations]);
+
+  // Close actions menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (actionsMenuRef.current && !actionsMenuRef.current.contains(event.target as Node)) {
+        setShowActionsMenu(false);
+      }
+    };
+
+    if (showActionsMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showActionsMenu]);
 
   const loadCollaborations = async () => {
     try {
@@ -334,6 +352,8 @@ export function EnhancedIdeaDetail({
   const [selectedText, setSelectedText] = useState<string>('');
   const [selectionPosition, setSelectionPosition] = useState<{x: number, y: number} | null>(null);
   const [pendingRefinement, setPendingRefinement] = useState<{content: string, originalIdea: Idea} | null>(null);
+  const [showActionsMenu, setShowActionsMenu] = useState(false);
+  const actionsMenuRef = useRef<HTMLDivElement>(null);
 
   const handleAiChatSend = async () => {
     if (!aiChatMessage.trim() || isAiGenerating) return;
@@ -424,6 +444,85 @@ export function EnhancedIdeaDetail({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <div className="relative" ref={actionsMenuRef}>
+            <button
+              onClick={() => setShowActionsMenu(!showActionsMenu)}
+              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Actions menu"
+            >
+              <Menu className="w-4 h-4" />
+            </button>
+            {showActionsMenu && (
+              <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-2">
+                <button
+                  onClick={() => {
+                    onConvertToProject();
+                    setShowActionsMenu(false);
+                  }}
+                  className="w-full flex items-center gap-2 px-4 py-2 text-left hover:bg-gray-50 transition-colors text-sm"
+                >
+                  <Rocket className="w-4 h-4 text-[#4780C6]" />
+                  <span>Convert to Project</span>
+                </button>
+                <button
+                  onClick={() => {
+                    copyShareUrl();
+                    setShowActionsMenu(false);
+                  }}
+                  className="w-full flex items-center gap-2 px-4 py-2 text-left hover:bg-gray-50 transition-colors text-sm"
+                >
+                  {shareUrl ? (
+                    <>
+                      <Check className="w-4 h-4 text-green-500" />
+                      <span>Link Copied</span>
+                    </>
+                  ) : (
+                    <>
+                      <Share2 className="w-4 h-4" />
+                      <span>Share</span>
+                    </>
+                  )}
+                </button>
+                {twitterShareUrl && (
+                  <a
+                    href={twitterShareUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setShowActionsMenu(false)}
+                    className="w-full flex items-center gap-2 px-4 py-2 text-left hover:bg-gray-50 transition-colors text-sm"
+                  >
+                    <Twitter className="w-4 h-4" />
+                    <span>Share on X</span>
+                  </a>
+                )}
+                {isOwner && (
+                  <>
+                    <div className="border-t border-gray-200 my-1" />
+                    <button
+                      onClick={() => {
+                        setShowCoverSelector(true);
+                        setShowActionsMenu(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-4 py-2 text-left hover:bg-gray-50 transition-colors text-sm"
+                    >
+                      <ImageIcon className="w-4 h-4" />
+                      <span>Cover</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        onDelete(idea.id);
+                        setShowActionsMenu(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-4 py-2 text-left hover:bg-red-50 text-red-600 transition-colors text-sm"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span>Delete</span>
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
           <button
             onClick={() => {
               router.push(`/ideator/idea/${idea.id}`);
@@ -443,29 +542,29 @@ export function EnhancedIdeaDetail({
         </div>
       </div>
 
-      {/* Cover Image */}
-      {idea.cover_image_url && (
-        <div className="mb-6 flex-shrink-0 px-6">
-          <div className="relative h-48 rounded-lg overflow-hidden border border-gray-200">
-            <img
-              src={idea.cover_image_url}
-              alt="Cover"
-              className="w-full h-full object-cover"
-            />
-            {isOwner && (
-              <button
-                onClick={() => setShowCoverSelector(true)}
-                className="absolute top-2 right-2 p-2 bg-black/50 hover:bg-black/70 text-white rounded-lg transition-colors"
-              >
-                <ImageIcon className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Content - Scrollable */}
-      <div className="flex-1 overflow-y-auto px-6 pb-6 min-h-0">
+      {/* Content - Scrollable (includes cover image) */}
+      <div className="flex-1 overflow-y-auto min-h-0">
+        <div className="px-6 pb-6">
+          {/* Cover Image */}
+          {idea.cover_image_url && (
+            <div className="mb-6 pt-6">
+              <div className="relative h-48 rounded-lg overflow-hidden border border-gray-200">
+                <img
+                  src={idea.cover_image_url}
+                  alt="Cover"
+                  className="w-full h-full object-cover"
+                />
+                {isOwner && (
+                  <button
+                    onClick={() => setShowCoverSelector(true)}
+                    className="absolute top-2 right-2 p-2 bg-black/50 hover:bg-black/70 text-white rounded-lg transition-colors"
+                  >
+                    <ImageIcon className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         {idea.formatted_idea?.title && (
           <div className="space-y-6">
             {idea.formatted_idea.description && (
@@ -700,61 +799,6 @@ export function EnhancedIdeaDetail({
           </div>
         )}
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <button
-            onClick={onConvertToProject}
-            className="flex items-center gap-2 px-4 py-2 bg-[#4780C6] text-white rounded-lg hover:bg-[#4780C6]/90 active:bg-[#4780C6]/80 transition-all text-sm font-medium"
-          >
-            <Rocket className="w-4 h-4" />
-            Convert to Project
-          </button>
-          <button
-            onClick={copyShareUrl}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
-          >
-            {shareUrl ? (
-              <>
-                <Check className="w-4 h-4 text-green-500" />
-                Link Copied
-              </>
-            ) : (
-              <>
-                <Share2 className="w-4 h-4" />
-                Share
-              </>
-            )}
-          </button>
-          {twitterShareUrl && (
-            <a
-              href={twitterShareUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
-            >
-              <Twitter className="w-4 h-4" />
-              Share on X
-            </a>
-          )}
-          {isOwner && (
-            <>
-              <button
-                onClick={() => onDelete(idea.id)}
-                className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors text-sm font-medium"
-              >
-                <Trash2 className="w-4 h-4" />
-                Delete
-              </button>
-              <button
-                onClick={() => setShowCoverSelector(true)}
-                className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
-              >
-                <ImageIcon className="w-4 h-4" />
-                Cover
-              </button>
-            </>
-          )}
-        </div>
 
         {/* Refine Section */}
         <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
