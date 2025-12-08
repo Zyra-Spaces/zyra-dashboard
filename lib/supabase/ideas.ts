@@ -1,12 +1,14 @@
 import { createClient } from './client';
 import { requireAuth, checkAuth } from './auth-guard';
 import { extractErrorInfo, getErrorDebugInfo } from '../utils/error-extractor';
+import { OutputData } from '@editorjs/editorjs';
 
 export interface Idea {
   id: string;
   user_id: string;
   prompt: string;
-  idea: string;
+  idea: string; // Legacy HTML/text content
+  editor_content?: OutputData | null; // New Editor.js JSON content
   formatted_idea?: {
     title?: string;
     description?: string;

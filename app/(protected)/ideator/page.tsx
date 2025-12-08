@@ -12,7 +12,8 @@ import { saveProject } from '@/lib/supabase/projects';
 import { extractErrorInfo, getErrorDebugInfo } from '@/lib/utils/error-extractor';
 import { EnhancedIdeaDetail } from '@/components/ideator/enhanced-idea-detail';
 import { AnimatedIdeaCard } from '@/components/ideator/animated-idea-card';
-import { RichTextEditor } from '@/components/ideator/rich-text-editor';
+import { EditorJSEditor } from '@/components/ideator/editorjs-editor';
+import { OutputData } from '@editorjs/editorjs';
 import { 
   Sparkles, 
   Send, 
