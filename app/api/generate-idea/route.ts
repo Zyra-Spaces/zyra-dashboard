@@ -90,13 +90,35 @@ Be creative but practical. Ensure each section is clearly marked with **bold** h
     console.error("Error generating idea:", error);
     
     // Handle rate limit errors specifically
-    if (error.status === 429 || error.message?.includes("quota") || error.message?.includes("RESOURCE_EXHAUSTED")) {
-      const retryAfter = error.message?.match(/retry in ([\d.]+)s/)?.[1];
+    if (error.status === 429 || error.message?.includes("quota") || error.message?.includes("RESOURCE_EXHAUSTED") || error.message?.includes("rate limit")) {
+      // Try to extract retry time from various error formats
+      let retryAfter: number | undefined;
+      
+      // Check for "retry in Xs" or "wait X seconds" patterns
+      const retryMatch = error.message?.match(/(?:retry|wait).*?(\d+(?:\.\d+)?)\s*(?:s|seconds?|sec)/i);
+      if (retryMatch) {
+        retryAfter = Math.ceil(parseFloat(retryMatch[1]));
+      }
+      
+      // Check error response headers
+      if (!retryAfter && error.response?.headers) {
+        const retryAfterHeader = error.response.headers.get('retry-after');
+        if (retryAfterHeader) {
+          retryAfter = parseInt(retryAfterHeader);
+        }
+      }
+      
+      // Default to 30 seconds if we can't determine
+      if (!retryAfter) {
+        retryAfter = 30;
+      }
+      
       return NextResponse.json(
         { 
-          error: "Rate limit exceeded. Please try again in a moment.",
-          retryAfter: retryAfter ? parseInt(retryAfter) : undefined,
-          details: "The free tier has rate limits. Consider upgrading or waiting before retrying."
+          error: "Rate limit exceeded",
+          retryAfter,
+          message: `Rate limit exceeded. Please wait ${retryAfter} seconds before trying again.`,
+          details: "The free tier has rate limits (15 requests per minute). Consider waiting or upgrading your API plan."
         },
         { status: 429 }
       );

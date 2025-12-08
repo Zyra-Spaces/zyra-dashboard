@@ -75,6 +75,7 @@ export default function IdeatorPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const PAGE_SIZE = 10;
+  const [rateLimitCountdown, setRateLimitCountdown] = useState<number | null>(null);
 
   const displayName = profile?.firstName && profile?.lastName
     ? `${profile.firstName} ${profile.lastName}`
@@ -84,6 +85,28 @@ export default function IdeatorPage() {
   useEffect(() => {
     loadIdeas();
   }, []);
+
+  // Rate limit countdown timer
+  useEffect(() => {
+    if (rateLimitCountdown === null || rateLimitCountdown <= 0) {
+      if (rateLimitCountdown === 0) {
+        setRateLimitCountdown(null);
+        notify.success('You can generate ideas again!');
+      }
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setRateLimitCountdown(prev => {
+        if (prev === null || prev <= 1) {
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [rateLimitCountdown]);
 
   const loadIdeas = async () => {
     try {
@@ -240,11 +263,14 @@ export default function IdeatorPage() {
 
       if (!response.ok) {
         if (response.status === 429) {
-          const retryAfter = data.retryAfter;
+          const retryAfter = data.retryAfter || 30;
+          setRateLimitCountdown(Math.ceil(retryAfter));
+          notify.error(
+            `Rate limit exceeded. Please wait ${Math.ceil(retryAfter)} seconds.`,
+            { duration: 5000 }
+          );
           throw new Error(
-            retryAfter 
-              ? `Rate limit exceeded. Please wait ${Math.ceil(retryAfter)} seconds before trying again.`
-              : data.error || 'Rate limit exceeded. Please try again later.'
+            `Rate limit exceeded. Please wait ${Math.ceil(retryAfter)} seconds before trying again.`
           );
         }
         throw new Error(data.error || 'Failed to generate idea');
@@ -725,6 +751,16 @@ export default function IdeatorPage() {
                       </p>
                     </div>
                   )}
+                  
+                  {/* Rate Limit Warning */}
+                  {rateLimitCountdown !== null && (
+                    <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <p className="text-xs text-yellow-700 flex items-center gap-2">
+                        <Zap className="w-3 h-3" />
+                        <strong>Rate limit:</strong> Please wait <strong>{rateLimitCountdown} seconds</strong> before generating another idea. The free tier allows 15 requests per minute.
+                      </p>
+                    </div>
+                  )}
 
                   {/* Input Area - Fixed at bottom */}
                   <div 
@@ -776,11 +812,14 @@ export default function IdeatorPage() {
                   />
                   <button
                     onClick={() => handleGenerate()}
-                    disabled={isGenerating || !prompt.trim()}
+                    disabled={isGenerating || !prompt.trim() || rateLimitCountdown !== null}
                     className="absolute bottom-3 right-3 p-2 bg-[#4780C6] text-white rounded-lg hover:bg-[#4780C6]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={rateLimitCountdown !== null ? `Rate limited. Wait ${rateLimitCountdown}s` : undefined}
                   >
                     {isGenerating ? (
                       <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : rateLimitCountdown !== null ? (
+                      <span className="text-xs font-medium">{rateLimitCountdown}s</span>
                     ) : (
                       <Send className="w-5 h-5" />
                     )}
