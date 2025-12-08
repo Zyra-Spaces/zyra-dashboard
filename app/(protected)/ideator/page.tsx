@@ -14,6 +14,7 @@ import { EnhancedIdeaDetail } from '@/components/ideator/enhanced-idea-detail';
 import { AnimatedIdeaCard } from '@/components/ideator/animated-idea-card';
 import { EditorJSEditor } from '@/components/ideator/editorjs-editor';
 import { OutputData } from '@editorjs/editorjs';
+import { convertTextToEditorBlocks } from '@/lib/utils/editorjs-helpers';
 import { 
   Sparkles, 
   Send, 
@@ -70,7 +71,8 @@ export default function IdeatorPage() {
   const [parsedGeneratedIdea, setParsedGeneratedIdea] = useState<any>(null);
   const [conversationHistory, setConversationHistory] = useState<Array<{type: 'user' | 'ai', content: string, idea?: any}>>([]);
   const [editingIdeaId, setEditingIdeaId] = useState<string | null>(null);
-  const [editContent, setEditContent] = useState<string>('');
+  const [editContent, setEditContent] = useState<OutputData | null>(null);
+  const editorRef = useRef<any>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -293,9 +295,13 @@ export default function IdeatorPage() {
       const color = getRandomColor();
       
       try {
+        // Convert AI-generated text to Editor.js format
+        const editorContent = convertTextToEditorBlocks(data.idea);
+        
         const newIdea = await saveIdea({
           prompt: currentPrompt.trim(),
           idea: data.idea,
+          editor_content: editorContent,
           formatted_idea: formattedIdea,
           context: refineIdea ? refinePrompt : undefined,
           color: color.name,
@@ -665,9 +671,48 @@ export default function IdeatorPage() {
                       onSelectText={(text) => {
                         setPrompt(prev => prev ? `${prev}\n\nReference: "${text}"` : `Reference: "${text}"`);
                       }}
-                      onEdit={(ideaId, content) => {
+                      onEdit={async (ideaId, content) => {
                         setEditingIdeaId(ideaId);
-                        setEditContent(content);
+                        // If editing an existing idea, try to load editor_content first
+                        if (ideaId && ideaId !== 'generated') {
+                          const idea = ideas.find(i => i.id === ideaId);
+                          if (idea?.editor_content) {
+                            setEditContent(idea.editor_content);
+                          } else {
+                            // Convert text to Editor.js format
+                            const blocks = content.split('\n\n').filter(Boolean).map(text => ({
+                              type: 'paragraph',
+                              data: { text: text.trim() }
+                            }));
+                            setEditContent({
+                              time: Date.now(),
+                              blocks,
+                              version: '2.28.0'
+                            });
+                          }
+                        } else {
+                          // For generated ideas, convert text to Editor.js format
+                          const blocks = content.split('\n\n').filter(Boolean).map(text => {
+                            if (text.startsWith('**') && text.includes(':**')) {
+                              return {
+                                type: 'header',
+                                data: { 
+                                  text: text.replace(/\*\*/g, '').split(':')[0].trim(),
+                                  level: 2
+                                }
+                              };
+                            }
+                            return {
+                              type: 'paragraph',
+                              data: { text: text.trim() }
+                            };
+                          });
+                          setEditContent({
+                            time: Date.now(),
+                            blocks,
+                            version: '2.28.0'
+                          });
+                        }
                       }}
                       ideaId={parsedGeneratedIdea ? 'generated' : null}
                       rawContent={generatingText}
@@ -682,20 +727,32 @@ export default function IdeatorPage() {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={async () => {
-                              if (editingIdeaId && editingIdeaId !== 'generated') {
+                              if (editingIdeaId && editingIdeaId !== 'generated' && editContent) {
                                 try {
-                                  await updateIdea(editingIdeaId, { idea: editContent });
+                                  await updateIdea(editingIdeaId, { 
+                                    editor_content: editContent,
+                                    idea: editContent.blocks.map(b => {
+                                      if (b.type === 'paragraph') return (b.data as any).text;
+                                      if (b.type === 'header') return (b.data as any).text;
+                                      return '';
+                                    }).join('\n').substring(0, 500)
+                                  });
                                   await loadIdeas();
                                   notify.success('Idea updated!');
                                 } catch (error) {
                                   notify.error('Failed to update idea');
                                 }
-                              } else if (editingIdeaId === 'generated' && parsedGeneratedIdea) {
+                              } else if (editingIdeaId === 'generated' && parsedGeneratedIdea && editContent) {
                                 // Save as new idea
                                 const color = getRandomColor();
                                 await saveIdea({
                                   prompt: prompt.replace(/<[^>]*>/g, ''),
-                                  idea: editContent,
+                                  idea: editContent.blocks.map(b => {
+                                    if (b.type === 'paragraph') return (b.data as any).text;
+                                    if (b.type === 'header') return (b.data as any).text;
+                                    return '';
+                                  }).join('\n').substring(0, 500),
+                                  editor_content: editContent,
                                   formatted_idea: parsedGeneratedIdea,
                                   color: color.name,
                                 });
@@ -705,7 +762,7 @@ export default function IdeatorPage() {
                                 setGeneratingText('');
                               }
                               setEditingIdeaId(null);
-                              setEditContent('');
+                              setEditContent(null);
                             }}
                             className="px-3 py-1.5 bg-[#4780C6] text-white rounded-lg hover:bg-[#4780C6]/90 transition-colors text-xs font-medium"
                           >
@@ -722,16 +779,20 @@ export default function IdeatorPage() {
                           </button>
                         </div>
                       </div>
-                      <RichTextEditor
-                        content={editContent}
+                      <EditorJSEditor
+                        initialData={editContent}
                         onChange={setEditContent}
-                        placeholder="Edit your idea..."
-                        editable={true}
-                        showToolbar={true}
                         onSave={async (content) => {
                           if (editingIdeaId && editingIdeaId !== 'generated') {
                             try {
-                              await updateIdea(editingIdeaId, { idea: content });
+                              await updateIdea(editingIdeaId, { 
+                                editor_content: content,
+                                idea: content.blocks.map(b => {
+                                  if (b.type === 'paragraph') return (b.data as any).text;
+                                  if (b.type === 'header') return (b.data as any).text;
+                                  return '';
+                                }).join('\n').substring(0, 500) // Keep legacy field for compatibility
+                              });
                               await loadIdeas();
                               notify.success('Idea updated!');
                               setEditingIdeaId(null);
@@ -740,6 +801,10 @@ export default function IdeatorPage() {
                             }
                           }
                         }}
+                        placeholder="Edit your idea..."
+                        editable={true}
+                        autoSave={true}
+                        ideaId={editingIdeaId !== 'generated' ? editingIdeaId : undefined}
                       />
                     </div>
                   )}

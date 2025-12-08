@@ -40,6 +40,7 @@ export async function saveIdea(idea: Omit<Idea, 'id' | 'user_id' | 'created_at' 
       user_id: user.id,
       prompt: idea.prompt,
       idea: idea.idea,
+      editor_content: idea.editor_content || null,
       formatted_idea: idea.formatted_idea || null,
       context: idea.context || null,
       color: idea.color || null,
