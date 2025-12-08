@@ -39,6 +39,9 @@ import {
   Menu,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { CollaboratorSkeleton, MessageSkeleton, Skeleton } from '@/components/ui/skeleton';
+import { MessageTyping } from '@/components/ideator/message-typing';
+import { TextSelectionHandler } from '@/components/ideator/text-selection-handler';
 
 interface EnhancedIdeaDetailProps {
   idea: Idea;
@@ -84,9 +87,14 @@ export function EnhancedIdeaDetail({
   const [isSharing, setIsSharing] = useState(false);
   const [refinePrompt, setRefinePrompt] = useState('');
   const [showActionsMenu, setShowActionsMenu] = useState(false);
+  const [isLoadingCollaborations, setIsLoadingCollaborations] = useState(true);
+  const [isLoadingConversations, setIsLoadingConversations] = useState(true);
+  const [typingMessageIds, setTypingMessageIds] = useState<Set<number>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const presenceIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const actionsMenuRef = useRef<HTMLDivElement>(null);
+  const aiChatContainerRef = useRef<HTMLDivElement>(null);
+  const contentContainerRef = useRef<HTMLDivElement>(null);
 
   const isOwner = idea.user_id === user?.id;
 
@@ -168,19 +176,25 @@ export function EnhancedIdeaDetail({
 
   const loadCollaborations = async () => {
     try {
+      setIsLoadingCollaborations(true);
       const data = await getIdeaCollaborations(idea.id);
       setCollaborations(data);
     } catch (error: any) {
       console.error('Error loading collaborations:', error);
+    } finally {
+      setIsLoadingCollaborations(false);
     }
   };
 
   const loadConversations = async () => {
     try {
+      setIsLoadingConversations(true);
       const data = await getIdeaConversations(idea.id);
       setConversations(data);
     } catch (error: any) {
       console.error('Error loading conversations:', error);
+    } finally {
+      setIsLoadingConversations(false);
     }
   };
 
@@ -408,8 +422,11 @@ export function EnhancedIdeaDetail({
       };
 
       const parsedIdea = parseIdea(data.idea);
+      const newMessageIndex = aiChatHistory.length;
       setAiChatHistory(prev => [...prev, { type: 'ai', content: data.idea, idea: parsedIdea }]);
       setPendingRefinement({ content: data.idea, originalIdea: idea });
+      // Mark this message for typing animation
+      setTypingMessageIds(prev => new Set([...prev, newMessageIndex]));
     } catch (error: any) {
       notify.error(error.message || 'Failed to get AI response');
     } finally {
@@ -543,7 +560,23 @@ export function EnhancedIdeaDetail({
       </div>
 
       {/* Content - Scrollable (includes cover image) */}
-      <div className="flex-1 overflow-y-auto min-h-0">
+      <div ref={contentContainerRef} className="flex-1 overflow-y-auto min-h-0 relative">
+        {/* Text Selection Handler for Main Content */}
+        <TextSelectionHandler
+          onQuote={(text) => {
+            setAiChatMessage(prev => {
+              const quote = `> ${text}\n\n`;
+              return prev ? `${prev}\n${quote}` : quote;
+            });
+            // Focus the AI chat input
+            setTimeout(() => {
+              const input = document.querySelector('input[placeholder*="Ask AI"]') as HTMLInputElement;
+              if (input) input.focus();
+            }, 100);
+          }}
+          enabled={true}
+          containerRef={contentContainerRef}
+        />
         <div className="px-6 pb-6">
           {/* Cover Image */}
           {idea.cover_image_url && (
@@ -669,24 +702,34 @@ export function EnhancedIdeaDetail({
             Conversation ({conversations.length})
           </h3>
           <div className="space-y-3 max-h-64 overflow-y-auto mb-4">
-            {conversations.map((conv) => (
-              <div key={conv.id} className="flex gap-3">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
-                  {conv.user?.user_metadata?.firstName?.charAt(0) || conv.user?.email?.charAt(0) || 'U'}
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs font-medium text-gray-900">
-                      {conv.user?.user_metadata?.firstName || conv.user?.email?.split('@')[0] || 'User'}
-                    </span>
-                    <span className="text-xs text-gray-400">
-                      {new Date(conv.created_at).toLocaleTimeString()}
-                    </span>
+            {isLoadingConversations ? (
+              <>
+                <MessageSkeleton />
+                <MessageSkeleton isOwn />
+                <MessageSkeleton />
+              </>
+            ) : conversations.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-4">No messages yet. Start the conversation!</p>
+            ) : (
+              conversations.map((conv) => (
+                <div key={conv.id} className="flex gap-3">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
+                    {conv.user?.user_metadata?.firstName?.charAt(0) || conv.user?.email?.charAt(0) || 'U'}
                   </div>
-                  <p className="text-sm text-gray-600">{conv.message}</p>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-medium text-gray-900">
+                        {conv.user?.user_metadata?.firstName || conv.user?.email?.split('@')[0] || 'User'}
+                      </span>
+                      <span className="text-xs text-gray-400">
+                        {new Date(conv.created_at).toLocaleTimeString()}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-600">{conv.message}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
             <div ref={messagesEndRef} />
           </div>
           <div className="flex gap-2">
@@ -782,7 +825,12 @@ export function EnhancedIdeaDetail({
                 )}
               </button>
             </div>
-            {collaborations.length > 0 ? (
+            {isLoadingCollaborations ? (
+              <div className="space-y-2">
+                <CollaboratorSkeleton />
+                <CollaboratorSkeleton />
+              </div>
+            ) : collaborations.length > 0 ? (
               <div className="space-y-2">
                 {collaborations.map((collab) => (
                   <div key={collab.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
@@ -796,7 +844,9 @@ export function EnhancedIdeaDetail({
                   </div>
                 ))}
               </div>
-            ) : null}
+            ) : (
+              <p className="text-sm text-gray-500 text-center py-2">No collaborators yet</p>
+            )}
           </div>
         )}
 
@@ -846,91 +896,125 @@ export function EnhancedIdeaDetail({
           <p className="text-xs text-gray-500 mt-1">Ask AI to refine or improve this idea</p>
         </div>
         
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
+        <div ref={aiChatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0 relative">
+          {/* Text Selection Handler */}
+          <TextSelectionHandler
+            onQuote={(text) => {
+              setAiChatMessage(prev => {
+                const quote = `> ${text}\n\n`;
+                return prev ? `${prev}\n${quote}` : quote;
+              });
+              // Focus the input
+              setTimeout(() => {
+                const input = document.querySelector('input[placeholder*="Ask AI"]') as HTMLInputElement;
+                if (input) input.focus();
+              }, 100);
+            }}
+            enabled={true}
+            containerRef={aiChatContainerRef}
+          />
+          
           {aiChatHistory.length === 0 && (
             <div className="text-center text-sm text-gray-500 py-8">
               <Sparkles className="w-8 h-8 mx-auto mb-2 text-gray-400" />
               <p>Start a conversation to refine your idea</p>
             </div>
           )}
-          {aiChatHistory.map((msg, idx) => (
-            <div key={idx} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[85%] p-3 rounded-lg text-sm ${
-                msg.type === 'user'
-                  ? 'bg-[#4780C6] text-white'
-                  : 'bg-white border border-gray-200 text-gray-800'
-              }`}>
-                {msg.type === 'ai' && msg.idea ? (
-                  <div>
-                    <p className="whitespace-pre-wrap mb-3">{msg.content}</p>
-                    {idx === aiChatHistory.length - 1 && pendingRefinement && (
-                      <div className="mt-3 pt-3 border-t border-gray-200 flex gap-2">
-                        <button
-                          onClick={async () => {
-                            try {
-                              const parseIdea = (text: string) => {
-                                const parsed: any = {};
-                                const titleMatch = text.match(/\*\*Title:\*\*\s*(.+?)(?:\n|$)/i) || text.match(/^(.+?)(?:\n|$)/);
-                                if (titleMatch) parsed.title = titleMatch[1].trim();
-                                const descMatch = text.match(/\*\*Description:\*\*\s*([\s\S]+?)(?:\n\n|\*\*)/i);
-                                if (descMatch) parsed.description = descMatch[1].trim();
-                                const featuresMatch = text.match(/\*\*Key Features[^:]*:\*\*\s*([\s\S]+?)(?:\n\n\*\*|$)/i);
-                                if (featuresMatch) {
-                                  parsed.features = featuresMatch[1]
-                                    .split(/\n[-•*]\s*/)
-                                    .filter(f => f.trim().length > 0)
-                                    .map(f => f.trim().replace(/^[-•*]\s*/, ''));
-                                }
-                                const useCasesMatch = text.match(/\*\*Potential Use Cases[^:]*:\*\*\s*([\s\S]+?)(?:\n\n\*\*|$)/i);
-                                if (useCasesMatch) {
-                                  parsed.useCases = useCasesMatch[1]
-                                    .split(/\n[-•*]\s*/)
-                                    .filter(u => u.trim().length > 0)
-                                    .map(u => u.trim().replace(/^[-•*]\s*/, ''));
-                                }
-                                const tagsMatch = text.match(/\*\*Suggested Tags[^:]*:\*\*\s*(.+?)(?:\n\n|$)/i);
-                                if (tagsMatch) {
-                                  parsed.tags = tagsMatch[1]
-                                    .split(/[,•]/)
-                                    .map(t => t.trim())
-                                    .filter(t => t.length > 0);
-                                }
-                                return parsed;
-                              };
-                              const formattedIdea = parseIdea(pendingRefinement.content);
-                              await updateIdea(idea.id, {
-                                idea: pendingRefinement.content,
-                                formatted_idea: formattedIdea,
-                              });
-                              notify.success('Refinement accepted! Idea updated.');
+          {aiChatHistory.map((msg, idx) => {
+            const isTyping = typingMessageIds.has(idx) && msg.type === 'ai';
+            return (
+              <div key={idx} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[85%] p-3 rounded-lg text-sm ${
+                  msg.type === 'user'
+                    ? 'bg-[#4780C6] text-white'
+                    : 'bg-white border border-gray-200 text-gray-800'
+                }`}>
+                  {msg.type === 'ai' && msg.idea ? (
+                    <div>
+                      {isTyping ? (
+                        <MessageTyping
+                          text={msg.content}
+                          speed={20}
+                          onComplete={() => {
+                            setTypingMessageIds(prev => {
+                              const next = new Set(prev);
+                              next.delete(idx);
+                              return next;
+                            });
+                          }}
+                        />
+                      ) : (
+                        <p className="whitespace-pre-wrap mb-3">{msg.content}</p>
+                      )}
+                      {idx === aiChatHistory.length - 1 && pendingRefinement && !isTyping && (
+                        <div className="mt-3 pt-3 border-t border-gray-200 flex gap-2">
+                          <button
+                            onClick={async () => {
+                              try {
+                                const parseIdea = (text: string) => {
+                                  const parsed: any = {};
+                                  const titleMatch = text.match(/\*\*Title:\*\*\s*(.+?)(?:\n|$)/i) || text.match(/^(.+?)(?:\n|$)/);
+                                  if (titleMatch) parsed.title = titleMatch[1].trim();
+                                  const descMatch = text.match(/\*\*Description:\*\*\s*([\s\S]+?)(?:\n\n|\*\*)/i);
+                                  if (descMatch) parsed.description = descMatch[1].trim();
+                                  const featuresMatch = text.match(/\*\*Key Features[^:]*:\*\*\s*([\s\S]+?)(?:\n\n\*\*|$)/i);
+                                  if (featuresMatch) {
+                                    parsed.features = featuresMatch[1]
+                                      .split(/\n[-•*]\s*/)
+                                      .filter(f => f.trim().length > 0)
+                                      .map(f => f.trim().replace(/^[-•*]\s*/, ''));
+                                  }
+                                  const useCasesMatch = text.match(/\*\*Potential Use Cases[^:]*:\*\*\s*([\s\S]+?)(?:\n\n\*\*|$)/i);
+                                  if (useCasesMatch) {
+                                    parsed.useCases = useCasesMatch[1]
+                                      .split(/\n[-•*]\s*/)
+                                      .filter(u => u.trim().length > 0)
+                                      .map(u => u.trim().replace(/^[-•*]\s*/, ''));
+                                  }
+                                  const tagsMatch = text.match(/\*\*Suggested Tags[^:]*:\*\*\s*(.+?)(?:\n\n|$)/i);
+                                  if (tagsMatch) {
+                                    parsed.tags = tagsMatch[1]
+                                      .split(/[,•]/)
+                                      .map(t => t.trim())
+                                      .filter(t => t.length > 0);
+                                  }
+                                  return parsed;
+                                };
+                                const formattedIdea = parseIdea(pendingRefinement.content);
+                                await updateIdea(idea.id, {
+                                  idea: pendingRefinement.content,
+                                  formatted_idea: formattedIdea,
+                                });
+                                notify.success('Refinement accepted! Idea updated.');
+                                setPendingRefinement(null);
+                                window.location.reload();
+                              } catch (error: any) {
+                                notify.error('Failed to accept refinement');
+                              }
+                            }}
+                            className="flex-1 px-3 py-1.5 bg-green-500 text-white rounded text-xs font-medium hover:bg-green-600 transition-colors"
+                          >
+                            ✓ Accept
+                          </button>
+                          <button
+                            onClick={() => {
                               setPendingRefinement(null);
-                              window.location.reload();
-                            } catch (error: any) {
-                              notify.error('Failed to accept refinement');
-                            }
-                          }}
-                          className="flex-1 px-3 py-1.5 bg-green-500 text-white rounded text-xs font-medium hover:bg-green-600 transition-colors"
-                        >
-                          ✓ Accept
-                        </button>
-                        <button
-                          onClick={() => {
-                            setPendingRefinement(null);
-                            notify.info('Refinement rejected');
-                          }}
-                          className="flex-1 px-3 py-1.5 bg-gray-200 text-gray-700 rounded text-xs font-medium hover:bg-gray-300 transition-colors"
-                        >
-                          ✕ Reject
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <p className="whitespace-pre-wrap">{msg.content}</p>
-                )}
+                              notify.info('Refinement rejected');
+                            }}
+                            className="flex-1 px-3 py-1.5 bg-gray-200 text-gray-700 rounded text-xs font-medium hover:bg-gray-300 transition-colors"
+                          >
+                            ✕ Reject
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           {isAiGenerating && (
             <div className="flex justify-start">
               <div className="bg-white border border-gray-200 rounded-lg p-3">

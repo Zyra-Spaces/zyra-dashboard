@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ProtectedRoute } from '@/components/auth/protected-route';
 import { useAuth } from '@/contexts/auth-context';
 import { useProfile } from '@/hooks/use-profile';
 import { InlineNotification, notify } from '@/components/ui/inline-notification';
-import { saveIdea, getUserIdeas, deleteIdea, getIdeaCount, updateIdea, type Idea } from '@/lib/supabase/ideas';
+import { saveIdea, getUserIdeas, getUserIdeasPaginated, deleteIdea, getIdeaCount, updateIdea, type Idea } from '@/lib/supabase/ideas';
 import { saveProject } from '@/lib/supabase/projects';
 import { extractErrorInfo, getErrorDebugInfo } from '@/lib/utils/error-extractor';
 import { EnhancedIdeaDetail } from '@/components/ideator/enhanced-idea-detail';
@@ -34,6 +34,7 @@ import {
   CheckCircle2,
   Pin
 } from 'lucide-react';
+import { IdeaCardSkeleton, Skeleton } from '@/components/ui/skeleton';
 
 const DEFAULT_CONTEXT = `You are helping a user generate innovative project ideas. The user wants creative, feasible, and well-structured project concepts that can be turned into real products or services. Focus on practical solutions with clear value propositions.`;
 
@@ -69,6 +70,11 @@ export default function IdeatorPage() {
   const [conversationHistory, setConversationHistory] = useState<Array<{type: 'user' | 'ai', content: string, idea?: any}>>([]);
   const [editingIdeaId, setEditingIdeaId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState<string>('');
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const PAGE_SIZE = 10;
 
   const displayName = profile?.firstName && profile?.lastName
     ? `${profile.firstName} ${profile.lastName}`
@@ -82,8 +88,11 @@ export default function IdeatorPage() {
   const loadIdeas = async () => {
     try {
       setIsLoading(true);
-      const userIdeas = await getUserIdeas();
+      setCurrentPage(1);
+      setHasMore(true);
+      const userIdeas = await getUserIdeasPaginated(1, PAGE_SIZE);
       setIdeas(userIdeas);
+      setHasMore(userIdeas.length === PAGE_SIZE);
       const count = await getIdeaCount();
       setIdeaCount(count);
     } catch (error: any) {
@@ -108,6 +117,48 @@ export default function IdeatorPage() {
       setIsLoading(false);
     }
   };
+
+  // Load more ideas when sentinel is visible
+  const loadMoreIdeas = useCallback(async () => {
+    if (isLoadingMore || !hasMore) return;
+    
+    try {
+      setIsLoadingMore(true);
+      const nextPage = currentPage + 1;
+      const moreIdeas = await getUserIdeasPaginated(nextPage, PAGE_SIZE);
+      
+      if (moreIdeas.length === 0) {
+        setHasMore(false);
+      } else {
+        setIdeas(prev => [...prev, ...moreIdeas]);
+        setCurrentPage(nextPage);
+        setHasMore(moreIdeas.length === PAGE_SIZE);
+      }
+    } catch (error) {
+      console.error('Error loading more ideas:', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [currentPage, isLoadingMore, hasMore]);
+
+  // Intersection observer for lazy loading
+  useEffect(() => {
+    if (!sentinelRef.current) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting && hasMore && !isLoadingMore && !isLoading) {
+          loadMoreIdeas();
+        }
+      },
+      { threshold: 0.1, rootMargin: '100px' }
+    );
+
+    observer.observe(sentinelRef.current);
+
+    return () => observer.disconnect();
+  }, [hasMore, isLoadingMore, isLoading, loadMoreIdeas]);
 
   // Get context from previous chat history
   const getContext = useMemo(() => {
@@ -752,7 +803,14 @@ export default function IdeatorPage() {
                   <span className="text-xs text-gray-500">{ideaCount} {ideaCount === 1 ? 'idea' : 'ideas'}</span>
                 </div>
                 <div className="flex-1 overflow-y-auto pr-2 space-y-3">
-                  {ideas.length === 0 ? (
+                  {isLoading ? (
+                    <>
+                      <IdeaCardSkeleton />
+                      <IdeaCardSkeleton />
+                      <IdeaCardSkeleton />
+                      <IdeaCardSkeleton />
+                    </>
+                  ) : ideas.length === 0 ? (
                     <p className="text-sm text-gray-500 text-center py-8">No ideas yet. Start generating!</p>
                   ) : (
                     <>
@@ -807,6 +865,24 @@ export default function IdeatorPage() {
                           </div>
                         );
                       })}
+                      {/* Sentinel for lazy loading */}
+                      <div ref={sentinelRef} className="h-1" />
+                      
+                      {/* Loading more indicator */}
+                      {isLoadingMore && (
+                        <div className="flex items-center justify-center py-3">
+                          <Loader2 className="w-4 h-4 animate-spin text-[#4780C6]" />
+                          <span className="ml-2 text-xs text-gray-500">Loading more...</span>
+                        </div>
+                      )}
+                      
+                      {/* End of list indicator */}
+                      {!hasMore && ideas.length > 0 && (
+                        <div className="text-center py-2">
+                          <p className="text-xs text-gray-400">All ideas loaded</p>
+                        </div>
+                      )}
+                      
                       {ideas.length > 0 && (
                         <div className="pt-2 border-t border-gray-200">
                           <button

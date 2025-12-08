@@ -26,6 +26,15 @@ import {
   TrendingUp,
   Sparkles
 } from 'lucide-react';
+import {
+  StatsSkeleton,
+  SmallProjectCardSkeleton,
+  ActivitySkeleton,
+  ProfileCardSkeleton,
+  TopicSkeleton,
+  ProjectCardSkeleton,
+  CardSkeleton,
+} from '@/components/ui/skeleton';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -441,7 +450,11 @@ export default function DashboardPage() {
                 </div>
                 <div className="space-y-4">
                   {isLoadingProjects ? (
-                    <div className="text-center py-4 text-sm text-gray-500">Loading projects...</div>
+                    <>
+                      <SmallProjectCardSkeleton />
+                      <SmallProjectCardSkeleton />
+                      <SmallProjectCardSkeleton />
+                    </>
                   ) : projects.length === 0 ? (
                     <div className="text-center py-4 text-sm text-gray-500">No projects yet</div>
                   ) : (

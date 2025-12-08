@@ -202,3 +202,38 @@ export async function getIdeaCount(): Promise<number> {
   return count || 0;
 }
 
+/**
+ * Get paginated ideas for the current user (for lazy loading)
+ */
+export async function getUserIdeasPaginated(page: number = 1, pageSize: number = 10): Promise<Idea[]> {
+  const { user, supabase } = await requireAuth();
+
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  const { data, error } = await supabase
+    .from('ideas')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .range(from, to);
+
+  if (error) {
+    const errorInfo = extractErrorInfo(error);
+    const debugInfo = getErrorDebugInfo(error);
+    
+    console.error('Supabase error in getUserIdeasPaginated:', {
+      ...errorInfo,
+      ...debugInfo,
+    });
+    
+    const enhancedError = new Error(errorInfo.message);
+    (enhancedError as any).code = errorInfo.code;
+    (enhancedError as any).details = errorInfo.details;
+    (enhancedError as any).hint = errorInfo.hint;
+    throw enhancedError;
+  }
+
+  return data || [];
+}
+
