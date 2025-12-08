@@ -37,6 +37,7 @@ import {
   CheckCircle2,
   Maximize2,
   Menu,
+  Zap,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { CollaboratorSkeleton, MessageSkeleton, Skeleton } from '@/components/ui/skeleton';
@@ -156,6 +157,28 @@ export function EnhancedIdeaDetail({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [conversations]);
+
+  // Rate limit countdown timer
+  useEffect(() => {
+    if (rateLimitCountdown === null || rateLimitCountdown <= 0) {
+      if (rateLimitCountdown === 0) {
+        setRateLimitCountdown(null);
+        notify.success('You can generate ideas again!');
+      }
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setRateLimitCountdown(prev => {
+        if (prev === null || prev <= 1) {
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [rateLimitCountdown]);
 
   // Close actions menu when clicking outside
   useEffect(() => {
@@ -368,9 +391,10 @@ export function EnhancedIdeaDetail({
   const [selectedText, setSelectedText] = useState<string>('');
   const [selectionPosition, setSelectionPosition] = useState<{x: number, y: number} | null>(null);
   const [pendingRefinement, setPendingRefinement] = useState<{content: string, originalIdea: Idea} | null>(null);
+  const [rateLimitCountdown, setRateLimitCountdown] = useState<number | null>(null);
 
   const handleAiChatSend = async () => {
-    if (!aiChatMessage.trim() || isAiGenerating) return;
+    if (!aiChatMessage.trim() || isAiGenerating || rateLimitCountdown !== null) return;
     
     const userMessage = aiChatMessage.trim();
     setAiChatMessage('');
@@ -1074,6 +1098,16 @@ export function EnhancedIdeaDetail({
               </p>
             </div>
           )}
+          
+          {/* Rate Limit Warning */}
+          {rateLimitCountdown !== null && (
+            <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p className="text-xs text-yellow-700 flex items-center gap-2">
+                <Zap className="w-3 h-3" />
+                <strong>Rate limit:</strong> Please wait <strong>{rateLimitCountdown} seconds</strong> before generating another idea.
+              </p>
+            </div>
+          )}
           <div className="flex gap-2">
             <input
               type="text"
@@ -1087,15 +1121,18 @@ export function EnhancedIdeaDetail({
               }}
               placeholder="Ask AI to refine..."
               className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4780C6] focus:border-transparent text-sm"
-              disabled={isAiGenerating}
+              disabled={isAiGenerating || rateLimitCountdown !== null}
             />
             <button
               onClick={handleAiChatSend}
-              disabled={!aiChatMessage.trim() || isAiGenerating}
+              disabled={!aiChatMessage.trim() || isAiGenerating || rateLimitCountdown !== null}
               className="px-4 py-2 bg-[#4780C6] text-white rounded-lg hover:bg-[#4780C6]/90 active:bg-[#4780C6]/80 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+              title={rateLimitCountdown !== null ? `Rate limited. Wait ${rateLimitCountdown}s` : undefined}
             >
               {isAiGenerating ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
+              ) : rateLimitCountdown !== null ? (
+                <span className="text-xs font-medium">{rateLimitCountdown}s</span>
               ) : (
                 <Send className="w-4 h-4" />
               )}
