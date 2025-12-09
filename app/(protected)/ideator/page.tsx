@@ -127,7 +127,13 @@ export default function IdeatorPage() {
       const debugInfo = getErrorDebugInfo(error);
       
       console.error('Error loading ideas:', {
-        ...errorInfo,
+        message: errorInfo.message,
+        code: errorInfo.code,
+        details: errorInfo.details,
+        hint: errorInfo.hint,
+        errorString: String(error),
+        errorType: typeof error,
+        fullError: error,
         ...debugInfo,
       });
       

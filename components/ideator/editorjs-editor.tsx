@@ -45,24 +45,24 @@ export function EditorJSEditor({
         { default: Header },
         { default: List },
         { default: Paragraph },
-        // @ts-expect-error - No types available
         { default: Checklist },
         { default: Image },
         { default: Quote },
         { default: Table },
         { default: Code },
-        // @ts-expect-error - No types available
         { default: LinkTool },
       ] = await Promise.all([
         import('@editorjs/editorjs'),
         import('@editorjs/header'),
         import('@editorjs/list'),
         import('@editorjs/paragraph'),
+        // @ts-ignore - No types available
         import('@editorjs/checklist'),
         import('@editorjs/image'),
         import('@editorjs/quote'),
         import('@editorjs/table'),
         import('@editorjs/code'),
+        // @ts-ignore - No types available
         import('@editorjs/link'),
       ]);
 

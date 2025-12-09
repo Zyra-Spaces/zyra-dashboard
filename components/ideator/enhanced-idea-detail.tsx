@@ -91,6 +91,7 @@ export function EnhancedIdeaDetail({
   const [isLoadingCollaborations, setIsLoadingCollaborations] = useState(true);
   const [isLoadingConversations, setIsLoadingConversations] = useState(true);
   const [typingMessageIds, setTypingMessageIds] = useState<Set<number>>(new Set());
+  const [rateLimitCountdown, setRateLimitCountdown] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const presenceIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const actionsMenuRef = useRef<HTMLDivElement>(null);
@@ -391,7 +392,6 @@ export function EnhancedIdeaDetail({
   const [selectedText, setSelectedText] = useState<string>('');
   const [selectionPosition, setSelectionPosition] = useState<{x: number, y: number} | null>(null);
   const [pendingRefinement, setPendingRefinement] = useState<{content: string, originalIdea: Idea} | null>(null);
-  const [rateLimitCountdown, setRateLimitCountdown] = useState<number | null>(null);
 
   const handleAiChatSend = async () => {
     if (!aiChatMessage.trim() || isAiGenerating || rateLimitCountdown !== null) return;

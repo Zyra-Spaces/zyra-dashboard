@@ -122,7 +122,13 @@ export async function getUserProjects(): Promise<Project[]> {
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('Supabase error in getUserProjects:', error);
+    console.error('Supabase error in getUserProjects:', {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+      fullError: error,
+    });
     throw new Error(error.message || 'Failed to load projects');
   }
 
@@ -909,7 +915,13 @@ export async function getTrendingProjects(limit: number = 20, daysBack: number =
     .limit(limit);
 
   if (error) {
-    console.error('Error getting trending projects:', error);
+    console.error('Error getting trending projects:', {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+      fullError: error,
+    });
     throw new Error(error.message || 'Failed to get trending projects');
   }
 
