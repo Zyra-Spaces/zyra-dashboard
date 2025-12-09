@@ -6,7 +6,7 @@ import { MessageSquare } from 'lucide-react';
 interface TextSelectionHandlerProps {
   onQuote: (text: string) => void;
   enabled?: boolean;
-  containerRef?: React.RefObject<HTMLElement>;
+  containerRef?: React.RefObject<HTMLElement | null>;
 }
 
 export function TextSelectionHandler({ 
