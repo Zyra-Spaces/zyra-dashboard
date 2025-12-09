@@ -88,6 +88,7 @@ export function EnhancedIdeaDetail({
   const [isSharing, setIsSharing] = useState(false);
   const [refinePrompt, setRefinePrompt] = useState('');
   const [showActionsMenu, setShowActionsMenu] = useState(false);
+  const [showCollaboratorsPanel, setShowCollaboratorsPanel] = useState(false);
   const [isLoadingCollaborations, setIsLoadingCollaborations] = useState(true);
   const [isLoadingConversations, setIsLoadingConversations] = useState(true);
   const [typingMessageIds, setTypingMessageIds] = useState<Set<number>>(new Set());
@@ -537,6 +538,18 @@ export function EnhancedIdeaDetail({
                   </a>
                 )}
                 {isOwner && (
+                  <button
+                    onClick={() => {
+                      setShowCollaboratorsPanel(true);
+                      setShowActionsMenu(false);
+                    }}
+                    className="w-full flex items-center gap-2 px-4 py-2 text-left hover:bg-gray-50 transition-colors text-sm"
+                  >
+                    <Users className="w-4 h-4" />
+                    <span>Manage collaborators</span>
+                  </button>
+                )}
+                {isOwner && (
                   <>
                     <div className="border-t border-gray-200 my-1" />
                     <button
@@ -788,93 +801,6 @@ export function EnhancedIdeaDetail({
 
       {/* Actions - Fixed at bottom */}
       <div className="flex-shrink-0 pt-6 px-6 pb-6 border-t border-gray-200 space-y-4 bg-white">
-        {/* Collaboration Section */}
-        {isOwner && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                <Users className="w-4 h-4" />
-                Collaborators ({collaborations.length})
-              </h3>
-              <button
-                onClick={() => {
-                  if (inviteEmail && inviteEmail.trim()) {
-                    setInviteEmail('');
-                  } else {
-                    setInviteEmail('');
-                    // Trigger input to show by setting a space then clearing it
-                    setTimeout(() => {
-                      const input = document.querySelector('input[type="email"][placeholder="Enter email address"]') as HTMLInputElement;
-                      if (input) {
-                        input.focus();
-                      }
-                    }, 0);
-                  }
-                }}
-                className="text-xs text-[#4780C6] hover:text-[#4780C6]/80 transition-colors"
-              >
-                {inviteEmail && inviteEmail.trim() ? 'Cancel' : 'Invite'}
-              </button>
-            </div>
-            <div className="flex gap-2">
-              <input
-                type="email"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                placeholder="Enter email address"
-                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4780C6] focus:border-transparent text-sm"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && inviteEmail.trim()) {
-                    handleInvite();
-                  }
-                }}
-              />
-              <select
-                value={inviteRole}
-                onChange={(e) => setInviteRole(e.target.value as 'collaborator' | 'viewer')}
-                className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4780C6] focus:border-transparent text-sm"
-              >
-                <option value="collaborator">Collaborator</option>
-                <option value="viewer">Viewer</option>
-              </select>
-              <button
-                onClick={handleInvite}
-                disabled={isInviting || !inviteEmail.trim()}
-                className="px-4 py-2 bg-[#4780C6] text-white rounded-lg hover:bg-[#4780C6]/90 active:bg-[#4780C6]/80 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
-              >
-                {isInviting ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <UserPlus className="w-4 h-4" />
-                )}
-              </button>
-            </div>
-            {isLoadingCollaborations ? (
-              <div className="space-y-2">
-                <CollaboratorSkeleton />
-                <CollaboratorSkeleton />
-              </div>
-            ) : collaborations.length > 0 ? (
-              <div className="space-y-2">
-                {collaborations.map((collab) => (
-                  <div key={collab.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-                    <div>
-                      <span className="text-sm text-gray-900">{collab.email}</span>
-                      <span className="text-xs text-gray-500 ml-2">({collab.role})</span>
-                    </div>
-                    <span className={`text-xs px-2 py-1 rounded ${collab.status === 'accepted' ? 'bg-green-100 text-green-700' : collab.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'}`}>
-                      {collab.status}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500 text-center py-2">No collaborators yet</p>
-            )}
-          </div>
-        )}
-
-
         {/* Refine Section */}
         <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -908,6 +834,82 @@ export function EnhancedIdeaDetail({
           </div>
         </div>
       </div>
+      {/* Collaborators Modal */}
+      {showCollaboratorsPanel && isOwner && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center px-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Users className="w-5 h-5 text-[#4780C6]" />
+                <h3 className="text-sm font-semibold text-gray-900">Collaborators ({collaborations.length})</h3>
+              </div>
+              <button
+                onClick={() => setShowCollaboratorsPanel(false)}
+                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex gap-2">
+              <input
+                type="email"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                placeholder="Enter email address"
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4780C6] focus:border-transparent text-sm"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && inviteEmail.trim()) {
+                    handleInvite();
+                  }
+                }}
+              />
+              <select
+                value={inviteRole}
+                onChange={(e) => setInviteRole(e.target.value as 'collaborator' | 'viewer')}
+                className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4780C6] focus:border-transparent text-sm"
+              >
+                <option value="collaborator">Collaborator</option>
+                <option value="viewer">Viewer</option>
+              </select>
+              <button
+                onClick={handleInvite}
+                disabled={isInviting || !inviteEmail.trim()}
+                className="px-4 py-2 bg-[#4780C6] text-white rounded-lg hover:bg-[#4780C6]/90 active:bg-[#4780C6]/80 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+              >
+                {isInviting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <UserPlus className="w-4 h-4" />
+                )}
+              </button>
+            </div>
+
+            {isLoadingCollaborations ? (
+              <div className="space-y-2">
+                <CollaboratorSkeleton />
+                <CollaboratorSkeleton />
+              </div>
+            ) : collaborations.length > 0 ? (
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                {collaborations.map((collab) => (
+                  <div key={collab.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                    <div>
+                      <span className="text-sm text-gray-900">{collab.email}</span>
+                      <span className="text-xs text-gray-500 ml-2">({collab.role})</span>
+                    </div>
+                    <span className={`text-xs px-2 py-1 rounded ${collab.status === 'accepted' ? 'bg-green-100 text-green-700' : collab.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'}`}>
+                      {collab.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 text-center py-2">No collaborators yet</p>
+            )}
+          </div>
+        </div>
+      )}
       </div>
 
       {/* AI Chat Panel - Right Side */}

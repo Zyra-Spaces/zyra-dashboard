@@ -330,64 +330,140 @@ export function EditorJSEditor({
         </div>
       )}
 
-      {/* Editor Container */}
+      {/* Editor Container - Notion-style */}
       <div
         ref={holderRef}
-        className="editorjs-container min-h-[400px] border border-gray-200 rounded-lg bg-white p-4"
+        className="editorjs-container min-h-[600px] bg-white"
       />
 
-      {/* Editor.js Styles */}
+      {/* Editor.js Styles - Notion-inspired */}
       <style jsx global>{`
+        .editorjs-container {
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
         .editorjs-container .codex-editor {
-          min-height: 400px;
+          min-height: 600px;
+          padding: 96px 96px 96px 96px;
+          max-width: 900px;
+          margin: 0 auto;
         }
         .editorjs-container .codex-editor__redactor {
-          padding-bottom: 100px;
+          padding-bottom: 200px;
         }
         .editorjs-container .ce-block__content {
           max-width: 100%;
+          margin: 0;
         }
         .editorjs-container .ce-toolbar__content {
           max-width: 100%;
         }
+        .editorjs-container .ce-toolbar__plus {
+          left: -40px;
+        }
+        .editorjs-container .ce-toolbar__settings-btn {
+          opacity: 0;
+          transition: opacity 0.2s;
+        }
+        .editorjs-container .ce-block:hover .ce-toolbar__settings-btn {
+          opacity: 1;
+        }
         .editorjs-container .ce-paragraph {
           line-height: 1.6;
-          margin: 0.5rem 0;
+          margin: 1px 0;
+          font-size: 16px;
+          color: #37352f;
+          padding: 3px 2px;
+        }
+        .editorjs-container .ce-paragraph[data-placeholder]:empty::before {
+          color: rgba(55, 53, 47, 0.4);
+          opacity: 1;
         }
         .editorjs-container .ce-header {
-          margin: 1rem 0 0.5rem 0;
+          margin: 2px 0;
+          padding: 3px 2px;
+          font-weight: 600;
+          color: #37352f;
+        }
+        .editorjs-container .ce-header[data-level="1"] {
+          font-size: 40px;
+          line-height: 1.2;
+          margin-top: 2em;
+          margin-bottom: 4px;
+        }
+        .editorjs-container .ce-header[data-level="2"] {
+          font-size: 30px;
+          line-height: 1.3;
+          margin-top: 1.4em;
+          margin-bottom: 1px;
+        }
+        .editorjs-container .ce-header[data-level="3"] {
+          font-size: 24px;
+          line-height: 1.3;
+          margin-top: 1em;
+          margin-bottom: 1px;
         }
         .editorjs-container .ce-quote {
-          border-left: 4px solid #e5e7eb;
-          padding-left: 1rem;
-          margin: 1rem 0;
-          font-style: italic;
-          color: #6b7280;
+          border-left: 3px solid rgba(55, 53, 47, 0.16);
+          padding: 0 14px;
+          margin: 6px 0;
+          font-style: normal;
+          color: #37352f;
+          background: transparent;
         }
         .editorjs-container .ce-code {
-          background-color: #1f2937;
-          color: #f9fafb;
-          padding: 1rem;
-          border-radius: 0.5rem;
+          background-color: rgba(135, 131, 120, 0.15);
+          color: #eb5757;
+          padding: 2px 6px;
+          border-radius: 3px;
+          font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+          font-size: 85%;
+          margin: 0 2px;
+        }
+        .editorjs-container .ce-code-block {
+          background-color: rgba(135, 131, 120, 0.15);
+          color: #37352f;
+          padding: 1em;
+          border-radius: 3px;
           overflow-x: auto;
-          margin: 1rem 0;
+          margin: 1em 0;
+          font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+          font-size: 14px;
         }
         .editorjs-container .ce-list {
-          margin: 0.5rem 0;
+          margin: 1px 0;
+          padding-left: 1.5em;
+        }
+        .editorjs-container .ce-list__item {
+          margin: 0;
+          padding: 0;
         }
         .editorjs-container .ce-checklist {
-          margin: 0.5rem 0;
+          margin: 1px 0;
+        }
+        .editorjs-container .ce-checklist__item {
+          margin: 0;
         }
         .editorjs-container .ce-table {
-          margin: 1rem 0;
+          margin: 1em 0;
+          border-collapse: collapse;
+        }
+        .editorjs-container .ce-table__cell {
+          border: 1px solid rgba(55, 53, 47, 0.16);
+          padding: 8px;
         }
         .editorjs-container .ce-image {
-          margin: 1rem 0;
+          margin: 1em 0;
         }
         .editorjs-container .ce-image__picture img {
           max-width: 100%;
           height: auto;
-          border-radius: 0.5rem;
+          border-radius: 3px;
+        }
+        .editorjs-container .ce-block--selected {
+          background-color: rgba(35, 131, 226, 0.14);
+        }
+        .editorjs-container .ce-block--focused {
+          background-color: transparent;
         }
       `}</style>
     </div>

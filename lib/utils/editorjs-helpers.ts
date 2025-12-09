@@ -80,7 +80,10 @@ export function convertTextToEditorBlocks(text: string): OutputData {
 /**
  * Convert Editor.js blocks to plain text (for legacy compatibility)
  */
-export function convertEditorBlocksToText(data: OutputData): string {
+export function convertEditorBlocksToText(data: OutputData | null | undefined): string {
+  if (!data || !data.blocks || !Array.isArray(data.blocks)) {
+    return '';
+  }
   return data.blocks
     .map(block => {
       if (block.type === 'header') {

@@ -14,7 +14,7 @@ import { EnhancedIdeaDetail } from '@/components/ideator/enhanced-idea-detail';
 import { AnimatedIdeaCard } from '@/components/ideator/animated-idea-card';
 import { EditorJSEditor } from '@/components/ideator/editorjs-editor';
 import { OutputData } from '@editorjs/editorjs';
-import { convertTextToEditorBlocks } from '@/lib/utils/editorjs-helpers';
+import { convertTextToEditorBlocks, convertEditorBlocksToText } from '@/lib/utils/editorjs-helpers';
 import { 
   Sparkles, 
   Send, 
@@ -34,7 +34,8 @@ import {
   Search,
   MoreVertical,
   CheckCircle2,
-  Pin
+  Pin,
+  Save
 } from 'lucide-react';
 import { IdeaCardSkeleton, Skeleton } from '@/components/ui/skeleton';
 
@@ -79,10 +80,30 @@ export default function IdeatorPage() {
   const sentinelRef = useRef<HTMLDivElement>(null);
   const PAGE_SIZE = 10;
   const [rateLimitCountdown, setRateLimitCountdown] = useState<number | null>(null);
+  const [showIdeasSidebar, setShowIdeasSidebar] = useState(true);
+  const [showAiPanel, setShowAiPanel] = useState(true);
+  const [editorContent, setEditorContent] = useState<OutputData | null>(null);
+  const [isSavingEditorIdea, setIsSavingEditorIdea] = useState(false);
 
   const displayName = profile?.firstName && profile?.lastName
     ? `${profile.firstName} ${profile.lastName}`
     : profile?.firstName || profile?.lastName || user?.email?.split('@')[0] || 'User';
+
+  const mainColSpan = useMemo(() => {
+    if (showIdeasSidebar && showAiPanel) return 'lg:col-span-6';
+    if (showIdeasSidebar || showAiPanel) return 'lg:col-span-9';
+    return 'lg:col-span-12';
+  }, [showIdeasSidebar, showAiPanel]);
+
+  // Default sidebar visibility: collapse on mobile
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const isMobile = window.innerWidth < 1024;
+    setShowIdeasSidebar(!isMobile);
+    setShowAiPanel(!isMobile);
+    // Reset editor content on load
+    setEditorContent(null);
+  }, []);
 
   // Load ideas from Supabase
   useEffect(() => {
@@ -413,11 +434,56 @@ export default function IdeatorPage() {
       await loadIdeas();
       if (selectedIdea?.id === id) {
         setSelectedIdea(null);
+        setEditorContent(null);
       }
       notify.success('Idea deleted');
     } catch (error: any) {
       console.error('Error deleting idea:', error);
       notify.error('Failed to delete idea');
+    }
+  };
+
+  // Load selected idea into editor
+  useEffect(() => {
+    if (selectedIdea?.editor_content) {
+      setEditorContent(selectedIdea.editor_content);
+    } else if (selectedIdea?.idea) {
+      const blocks = convertTextToEditorBlocks(selectedIdea.idea);
+      setEditorContent(blocks);
+    } else {
+      setEditorContent(null);
+    }
+  }, [selectedIdea]);
+
+  const handleSaveEditorIdea = async (content: OutputData) => {
+    if (isSavingEditorIdea) return;
+    setIsSavingEditorIdea(true);
+    try {
+      const plain = convertEditorBlocksToText(content);
+      if (selectedIdea) {
+        await updateIdea(selectedIdea.id, {
+          editor_content: content,
+          idea: plain.substring(0, 500),
+        });
+        await loadIdeas();
+        notify.success('Idea updated');
+      } else {
+        const color = getRandomColor();
+        const newIdea = await saveIdea({
+          prompt: plain.substring(0, 80) || 'Untitled idea',
+          idea: plain.substring(0, 500),
+          editor_content: content,
+          color: color.name,
+        });
+        await loadIdeas();
+        setSelectedIdea(newIdea);
+        notify.success('Idea saved');
+      }
+    } catch (error) {
+      console.error('Error saving editor content:', error);
+      notify.error('Failed to save idea');
+    } finally {
+      setIsSavingEditorIdea(false);
     }
   };
 
@@ -544,11 +610,29 @@ export default function IdeatorPage() {
 
         {/* Main Content - Three Column Layout */}
         <div className="max-w-[1920px] mx-auto px-6 py-6 h-[calc(100vh-4rem)] overflow-hidden flex flex-col">
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowIdeasSidebar(prev => !prev)}
+                className="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                {showIdeasSidebar ? 'Hide ideas' : 'Show ideas'}
+              </button>
+              <button
+                onClick={() => setShowAiPanel(prev => !prev)}
+                className="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                {showAiPanel ? 'Hide AI' : 'Show AI'}
+              </button>
+            </div>
+            <p className="text-xs text-gray-500">Editor-first workflow • AI assist on the right</p>
+          </div>
           <div className="grid grid-cols-12 gap-6 flex-1 min-h-0">
-            {/* Left Sidebar */}
-            <aside className="col-span-3 space-y-6">
+            {/* Left Sidebar - Ideas List */}
+            {showIdeasSidebar && (
+            <aside className="col-span-12 lg:col-span-3 flex flex-col min-h-0">
               {/* Search Bar */}
-              <div className="relative">
+              <div className="relative mb-4 flex-shrink-0">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
                   type="text"
@@ -557,71 +641,101 @@ export default function IdeatorPage() {
                 />
               </div>
 
-              {/* Featured Profile Card */}
-              <div className="bg-gradient-to-br from-pink-500/20 via-purple-500/20 to-blue-500/20 rounded-xl p-6 relative overflow-hidden">
-                <div className="absolute inset-0 bg-[url('/images/banners/1.png')] opacity-10 bg-cover bg-center"></div>
-                <div className="relative">
-                  <div className="flex items-start justify-between mb-4">
-                    <Link href="/profile" className="flex items-center gap-3 group">
-                      {profile?.profilePic ? (
-                        <div className="relative">
-                          <img 
-                            src={profile.profilePic} 
-                            alt="Profile" 
-                            className="w-16 h-16 rounded-full object-cover border-4 border-white shadow-lg group-hover:ring-2 group-hover:ring-[#4780C6] transition-all"
-                          />
-                          <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center border-2 border-white">
-                            <CheckCircle2 className="w-3 h-3 text-white" />
+              {/* Ideas List - Scrollable */}
+              <div className="bg-white border border-gray-200 rounded-xl flex flex-col flex-1 min-h-0 overflow-hidden">
+                <div className="flex items-center justify-between p-4 border-b border-gray-200 flex-shrink-0">
+                  <h3 className="font-semibold text-gray-900">Your Ideas</h3>
+                  <span className="text-xs text-gray-500">{ideaCount} {ideaCount === 1 ? 'idea' : 'ideas'}</span>
+                </div>
+                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                  {isLoading ? (
+                    <>
+                      <IdeaCardSkeleton />
+                      <IdeaCardSkeleton />
+                      <IdeaCardSkeleton />
+                      <IdeaCardSkeleton />
+                    </>
+                  ) : ideas.length === 0 ? (
+                    <p className="text-sm text-gray-500 text-center py-8">No ideas yet. Start creating!</p>
+                  ) : (
+                    <>
+                      {ideas.map((idea) => {
+                        const colorClass = getColorClass(idea.color);
+                        return (
+                          <div
+                            key={idea.id}
+                            onClick={() => setSelectedIdea(idea)}
+                            draggable
+                            onDragStart={(e) => {
+                              const ideaData = JSON.stringify({
+                                title: idea.formatted_idea?.title,
+                                description: idea.formatted_idea?.description,
+                                features: idea.formatted_idea?.features,
+                                tags: idea.formatted_idea?.tags,
+                                fullIdea: idea.idea,
+                              });
+                              e.dataTransfer.setData('application/json', ideaData);
+                              e.dataTransfer.effectAllowed = 'move';
+                            }}
+                            className={`${colorClass.bg} ${colorClass.border} border-2 rounded-lg p-4 cursor-pointer hover:shadow-lg transition-all relative ${
+                              selectedIdea?.id === idea.id ? 'ring-2 ring-[#4780C6] ring-offset-2' : ''
+                            }`}
+                          >
+                            <div className="absolute top-2 right-2">
+                              <Pin className={`w-3.5 h-3.5 ${colorClass.text} opacity-50`} />
+                            </div>
+                            <h4 className={`font-bold text-base mb-2 ${colorClass.text} line-clamp-2`}>
+                              {idea.formatted_idea?.title || idea.prompt.substring(0, 50) + '...'}
+                            </h4>
+                            <p className={`text-xs mb-3 ${colorClass.text} opacity-80 line-clamp-2`}>
+                              {idea.formatted_idea?.description || idea.idea.substring(0, 100) + '...'}
+                            </p>
+                            <div className="flex items-center justify-between">
+                              <span className={`text-xs ${colorClass.text} opacity-60`}>
+                                {new Date(idea.created_at).toLocaleDateString()}
+                              </span>
+                              {idea.formatted_idea?.tags && idea.formatted_idea.tags.length > 0 && (
+                                <div className="flex gap-1">
+                                  {idea.formatted_idea.tags.slice(0, 2).map((tag, idx) => (
+                                    <span
+                                      key={idx}
+                                      className={`px-2 py-0.5 ${colorClass.accent} ${colorClass.text} rounded text-xs font-medium`}
+                                    >
+                                      {tag.substring(0, 8)}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ) : (
-                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white font-semibold text-xl border-4 border-white shadow-lg group-hover:ring-2 group-hover:ring-[#4780C6] transition-all">
-                          {displayName.charAt(0).toUpperCase()}
+                        );
+                      })}
+                      {/* Sentinel for lazy loading */}
+                      <div ref={sentinelRef} className="h-1" />
+                      
+                      {/* Loading more indicator */}
+                      {isLoadingMore && (
+                        <div className="flex items-center justify-center py-3">
+                          <Loader2 className="w-4 h-4 animate-spin text-[#4780C6]" />
+                          <span className="ml-2 text-xs text-gray-500">Loading more...</span>
                         </div>
                       )}
-                      <div>
-                        <h3 className="font-semibold text-gray-900 group-hover:text-[#4780C6] transition-colors">{displayName}</h3>
-                        <div className="flex items-center gap-1 mt-1">
-                          <span className="text-xs text-gray-600">•</span>
-                          <span className="text-xs font-medium text-purple-600">Premium</span>
+                      
+                      {/* End of list indicator */}
+                      {!hasMore && ideas.length > 0 && (
+                        <div className="text-center py-2">
+                          <p className="text-xs text-gray-400">All ideas loaded</p>
                         </div>
-                      </div>
-                    </Link>
-                  </div>
-                  <p className="text-sm text-gray-700 mb-4 italic">Perfect Dreamers Don&apos;t Sleep</p>
-                  <div className="flex items-center justify-end">
-                    <span className="text-sm font-medium text-gray-600">2.4k Observers</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Your Stats */}
-              <div className="bg-white border border-gray-200 rounded-xl p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold text-gray-900">Your Stats</h3>
-                  <button className="p-1 text-gray-400 hover:text-gray-600">
-                    <MoreVertical className="w-4 h-4" />
-                  </button>
-                </div>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Projects</span>
-                    <span className="font-semibold text-gray-900">23</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Teams</span>
-                    <span className="font-semibold text-gray-900">23</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Ideas</span>
-                    <span className="font-semibold text-gray-900">{ideaCount}</span>
-                  </div>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
             </aside>
+            )}
 
             {/* Center Content - Skeleton Card + Input */}
-            <main className="col-span-6 flex flex-col min-h-0">
+            <main className={`col-span-12 ${mainColSpan} flex flex-col min-h-0`}>
               {isLoading ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="w-8 h-8 animate-spin text-[#4780C6]" />
@@ -834,185 +948,175 @@ export default function IdeatorPage() {
                     </div>
                   )}
 
-                  {/* Input Area - Fixed at bottom */}
-                  <div 
-                    className="bg-white border border-gray-200 rounded-xl p-4 flex-shrink-0 mt-auto transition-colors"
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.currentTarget.classList.add('border-purple-400', 'bg-purple-50');
-                    }}
-                    onDragLeave={(e) => {
-                      e.currentTarget.classList.remove('border-purple-400', 'bg-purple-50');
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      e.currentTarget.classList.remove('border-purple-400', 'bg-purple-50');
-                      try {
-                        const ideaData = e.dataTransfer.getData('application/json');
-                        if (ideaData) {
-                          const idea = JSON.parse(ideaData);
-                          const ideaText = idea.description || idea.title || idea.fullIdea || '';
-                          if (ideaText) {
-                            setPrompt(prev => prev ? `${prev}\n\nContinue refining: "${ideaText.substring(0, 200)}${ideaText.length > 200 ? '...' : ''}"` : `Continue refining: "${ideaText.substring(0, 200)}${ideaText.length > 200 ? '...' : ''}"`);
-                            notify.success('Idea card dropped! Continue refining in the input above.');
+                  {/* Editor-first writing area */}
+                  <div className="bg-white border border-gray-200 rounded-xl p-4 flex-shrink-0 mt-auto transition-colors">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-800">Idea canvas</h3>
+                        <p className="text-xs text-gray-500">Rich text editor with images. Drag cards here to refine.</p>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          if (!editorContent) {
+                            notify.error('Nothing to save yet');
+                            return;
                           }
-                        }
-                      } catch (err) {
-                        console.error('Error handling drop:', err);
-                      }
-                    }}
-                  >
-                <div className="flex items-center justify-between mb-2 px-2">
-                  <span className="text-xs text-gray-500">Context managed automatically from your conversation history</span>
-                  <span className="text-xs text-gray-400">{prompt.length}/3000</span>
-                </div>
-                <div className="relative">
-                  <textarea
-                    value={prompt}
-                    onChange={(e) => {
-                      if (e.target.value.length <= 3000) setPrompt(e.target.value);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                          await handleSaveEditorIdea(editorContent);
+                        }}
+                        disabled={isSavingEditorIdea || !editorContent}
+                        className="px-3 py-1.5 bg-[#4780C6] text-white rounded-lg hover:bg-[#4780C6]/90 transition-colors text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {isSavingEditorIdea ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                        <span>{selectedIdea ? 'Update' : 'Save'}</span>
+                      </button>
+                    </div>
+
+                    <div
+                      className="border border-gray-200 rounded-lg p-2"
+                      onDragOver={(e) => {
                         e.preventDefault();
-                        handleGenerate();
-                      }
-                    }}
-                    placeholder="Ask Anything... Describe what kind of project idea you're looking for"
-                    className="w-full px-4 py-3 pr-12 border-2 border-[#4780C6] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4780C6]/20 resize-none text-sm"
-                    rows={3}
-                  />
-                  <button
-                    onClick={() => handleGenerate()}
-                    disabled={isGenerating || !prompt.trim() || rateLimitCountdown !== null}
-                    className="absolute bottom-3 right-3 p-2 bg-[#4780C6] text-white rounded-lg hover:bg-[#4780C6]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    title={rateLimitCountdown !== null ? `Rate limited. Wait ${rateLimitCountdown}s` : undefined}
-                  >
-                    {isGenerating ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : rateLimitCountdown !== null ? (
-                      <span className="text-xs font-medium">{rateLimitCountdown}s</span>
-                    ) : (
-                      <Send className="w-5 h-5" />
-                    )}
-                  </button>
-                </div>
-                <p className="mt-2 text-xs text-gray-500 px-2">
-                  Press <kbd className="px-2 py-0.5 bg-gray-100 rounded text-xs">Ctrl/Cmd + Enter</kbd> to generate
-                </p>
-              </div>
+                        e.currentTarget.classList.add('border-purple-400', 'bg-purple-50');
+                      }}
+                      onDragLeave={(e) => {
+                        e.currentTarget.classList.remove('border-purple-400', 'bg-purple-50');
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.currentTarget.classList.remove('border-purple-400', 'bg-purple-50');
+                        try {
+                          const ideaData = e.dataTransfer.getData('application/json');
+                          if (ideaData) {
+                            const idea = JSON.parse(ideaData);
+                            const ideaText = idea.description || idea.title || idea.fullIdea || '';
+                            if (ideaText) {
+                              const blocks = convertTextToEditorBlocks(ideaText);
+                              setEditorContent(blocks);
+                              notify.success('Idea card dropped into the editor.');
+                            }
+                          }
+                        } catch (err) {
+                          console.error('Error handling drop:', err);
+                        }
+                      }}
+                    >
+                      <EditorJSEditor
+                        initialData={editorContent}
+                        onChange={setEditorContent}
+                        onSave={setEditorContent}
+                        placeholder="Start writing your idea..."
+                        editable
+                        autoSave={false}
+                        className="min-h-[420px]"
+                      />
+                    </div>
+                  </div>
                 </>
               )}
             </main>
 
-            {/* Right Sidebar - All Idea Cards */}
-            <aside className="col-span-3 flex flex-col min-h-0 space-y-6">
-              {/* Recent Ideas List with Cards */}
+            {/* Right Sidebar - AI assistant */}
+            {showAiPanel && (
+            <aside className="col-span-12 lg:col-span-3 flex flex-col min-h-0 space-y-6">
+              {/* AI Assist Panel */}
               <div className="bg-white border border-gray-200 rounded-xl p-5 flex flex-col flex-1 min-h-0">
                 <div className="flex items-center justify-between mb-4 flex-shrink-0">
-                  <h3 className="font-semibold text-gray-900">Your Ideas</h3>
-                  <span className="text-xs text-gray-500">{ideaCount} {ideaCount === 1 ? 'idea' : 'ideas'}</span>
+                  <div>
+                    <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-[#4780C6]" />
+                      AI Assist
+                    </h3>
+                    <p className="text-xs text-gray-500">Generate snippets and paste into the editor.</p>
+                  </div>
                 </div>
-                <div className="flex-1 overflow-y-auto pr-2 space-y-3">
-                  {isLoading ? (
-                    <>
-                      <IdeaCardSkeleton />
-                      <IdeaCardSkeleton />
-                      <IdeaCardSkeleton />
-                      <IdeaCardSkeleton />
-                    </>
-                  ) : ideas.length === 0 ? (
-                    <p className="text-sm text-gray-500 text-center py-8">No ideas yet. Start generating!</p>
-                  ) : (
-                    <>
-                      {ideas.map((idea) => {
-                        const colorClass = getColorClass(idea.color);
-                        return (
-                          <div
-                            key={idea.id}
-                            onClick={() => setSelectedIdea(idea)}
-                            draggable
-                            onDragStart={(e) => {
-                              const ideaData = JSON.stringify({
-                                title: idea.formatted_idea?.title,
-                                description: idea.formatted_idea?.description,
-                                features: idea.formatted_idea?.features,
-                                tags: idea.formatted_idea?.tags,
-                                fullIdea: idea.idea,
-                              });
-                              e.dataTransfer.setData('application/json', ideaData);
-                              e.dataTransfer.effectAllowed = 'move';
+
+                {/* Conversation History (AI) */}
+                {conversationHistory.length > 0 && (
+                  <div className="space-y-4 mb-4 max-h-56 overflow-y-auto pr-1">
+                    {conversationHistory.map((item, idx) => (
+                      <div key={idx} className={`flex ${item.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        {item.type === 'ai' && item.idea ? (
+                          <AnimatedIdeaCard 
+                            isGenerating={false}
+                            parsedIdea={item.idea}
+                            onSelectText={(text) => {
+                              setPrompt(prev => prev ? `${prev}\n\nReference: "${text}"` : `Reference: "${text}"`);
                             }}
-                            className={`${colorClass.bg} ${colorClass.border} border-2 rounded-lg p-4 cursor-move hover:shadow-lg transition-all relative ${
-                              selectedIdea?.id === idea.id ? 'ring-2 ring-[#4780C6] ring-offset-2' : ''
-                            }`}
-                          >
-                            <div className="absolute top-2 right-2">
-                              <Pin className={`w-3.5 h-3.5 ${colorClass.text} opacity-50`} />
-                            </div>
-                            <h4 className={`font-bold text-base mb-2 ${colorClass.text} line-clamp-2`}>
-                              {idea.formatted_idea?.title || idea.prompt.substring(0, 50) + '...'}
-                            </h4>
-                            <p className={`text-xs mb-3 ${colorClass.text} opacity-80 line-clamp-2`}>
-                              {idea.formatted_idea?.description || idea.idea.substring(0, 100) + '...'}
-                            </p>
-                            <div className="flex items-center justify-between">
-                              <span className={`text-xs ${colorClass.text} opacity-60`}>
-                                {new Date(idea.created_at).toLocaleDateString()}
-                              </span>
-                              {idea.formatted_idea?.tags && idea.formatted_idea.tags.length > 0 && (
-                                <div className="flex gap-1">
-                                  {idea.formatted_idea.tags.slice(0, 2).map((tag, idx) => (
-                                    <span
-                                      key={idx}
-                                      className={`px-2 py-0.5 ${colorClass.accent} ${colorClass.text} rounded text-xs font-medium`}
-                                    >
-                                      {tag.substring(0, 8)}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
+                          />
+                        ) : (
+                          <div className={`max-w-[80%] p-3 rounded-lg ${
+                            item.type === 'user' 
+                              ? 'bg-[#4780C6] text-white' 
+                              : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            <p className="text-sm">{item.content}</p>
                           </div>
-                        );
-                      })}
-                      {/* Sentinel for lazy loading */}
-                      <div ref={sentinelRef} className="h-1" />
-                      
-                      {/* Loading more indicator */}
-                      {isLoadingMore && (
-                        <div className="flex items-center justify-center py-3">
-                          <Loader2 className="w-4 h-4 animate-spin text-[#4780C6]" />
-                          <span className="ml-2 text-xs text-gray-500">Loading more...</span>
-                        </div>
-                      )}
-                      
-                      {/* End of list indicator */}
-                      {!hasMore && ideas.length > 0 && (
-                        <div className="text-center py-2">
-                          <p className="text-xs text-gray-400">All ideas loaded</p>
-                        </div>
-                      )}
-                      
-                      {ideas.length > 0 && (
-                        <div className="pt-2 border-t border-gray-200">
-                          <button
-                            onClick={() => {
-                              // Scroll to top or could navigate to a dedicated ideas page
-                              window.scrollTo({ top: 0, behavior: 'smooth' });
-                            }}
-                            className="w-full px-4 py-2.5 bg-gradient-to-r from-[#4780C6] to-blue-600 text-white rounded-lg hover:from-[#4780C6]/90 hover:to-blue-600/90 transition-all text-sm font-medium flex items-center justify-center gap-2"
-                          >
-                            <Sparkles className="w-4 h-4" />
-                            View All Ideas
-                          </button>
-                        </div>
-                      )}
-                    </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Animated Idea Skeleton Card */}
+                <AnimatedIdeaCard 
+                  isGenerating={isGenerating} 
+                  generatedText={generatingText}
+                  parsedIdea={parsedGeneratedIdea}
+                  onSelectText={(text) => {
+                    setPrompt(prev => prev ? `${prev}\n\nReference: "${text}"` : `Reference: "${text}"`);
+                  }}
+                  ideaId={parsedGeneratedIdea ? 'generated' : null}
+                  rawContent={generatingText}
+                />
+
+                {/* Prompt Input */}
+                <div className="mt-4">
+                  {rateLimitCountdown !== null && (
+                    <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <p className="text-xs text-yellow-700 flex items-center gap-2">
+                        <Zap className="w-3 h-3" />
+                        <strong>Rate limit:</strong> Wait <strong>{rateLimitCountdown} s</strong> before generating again.
+                      </p>
+                    </div>
                   )}
+                  <div className="relative">
+                    <textarea
+                      value={prompt}
+                      onChange={(e) => {
+                        if (e.target.value.length <= 3000) setPrompt(e.target.value);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                          e.preventDefault();
+                          handleGenerate();
+                        }
+                      }}
+                      placeholder="Ask AI…"
+                      className="w-full px-4 py-3 pr-12 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4780C6]/20 resize-none text-sm"
+                      rows={3}
+                    />
+                    <button
+                      onClick={() => handleGenerate()}
+                      disabled={isGenerating || !prompt.trim() || rateLimitCountdown !== null}
+                      className="absolute bottom-3 right-3 p-2 bg-[#4780C6] text-white rounded-lg hover:bg-[#4780C6]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={rateLimitCountdown !== null ? `Rate limited. Wait ${rateLimitCountdown}s` : undefined}
+                    >
+                      {isGenerating ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : rateLimitCountdown !== null ? (
+                        <span className="text-xs font-medium">{rateLimitCountdown}s</span>
+                      ) : (
+                        <Send className="w-5 h-5" />
+                      )}
+                    </button>
+                  </div>
+                  <p className="mt-2 text-xs text-gray-500 px-1">
+                    Use AI to draft text, then paste into the editor.
+                  </p>
                 </div>
               </div>
             </aside>
+            )}
+
           </div>
         </div>
 
