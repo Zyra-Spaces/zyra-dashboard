@@ -22,6 +22,35 @@ export default function NewPasswordPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // CRITICAL: Clear ALL Supabase cookies on page load to prevent 431 errors
+  // This must happen BEFORE any requests to ensure headers aren't too large
+  useEffect(() => {
+    const clearAllCookies = () => {
+      try {
+        // Delete all cookies that start with 'sb-' (Supabase cookies)
+        const cookies = document.cookie.split(';');
+        cookies.forEach(cookie => {
+          const [name] = cookie.trim().split('=');
+          if (name.startsWith('sb-')) {
+            // Delete cookie by setting it to expire in the past
+            document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+            document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
+            // Also try without domain
+            document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=;`;
+          }
+        });
+        
+        // Also call the API to clear server-side cookies
+        fetch("/api/clear-supabase-cookies", { method: "POST" }).catch(() => {});
+      } catch (error) {
+        // Silent fail - not critical
+      }
+    };
+    
+    // Clear immediately on mount
+    clearAllCookies();
+  }, []);
+
   // Redirect if not in the right step
   useEffect(() => {
     if (!user && step !== 'creating_new_password') {

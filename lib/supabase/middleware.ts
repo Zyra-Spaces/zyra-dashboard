@@ -17,19 +17,27 @@ export async function updateSession(request: NextRequest) {
         setAll(cookiesToSet) {
           // CRITICAL: Filter out chunked cookies BEFORE setting them
           // This prevents Supabase from creating hundreds of chunked cookies
-          const filteredCookies = cookiesToSet.filter(({ name }) => {
+          const filteredCookies = cookiesToSet.filter(({ name, value }) => {
             // Reject ALL chunked cookies (anything with .293, .294, etc. suffix)
             if (name.startsWith('sb-') && /\.\d+$/.test(name)) {
               return false; // Don't set chunked cookies
             }
+            // Reject cookies that are too large (over 4KB per cookie)
+            if (value && value.length > 4096) {
+              console.warn(`Rejecting large cookie: ${name} (${value.length} bytes)`);
+              return false;
+            }
             return true;
           });
           
-          // Only allow ONE base Supabase cookie
+          // Only allow ONE base Supabase cookie (the main auth cookie)
           const supabaseCookies = filteredCookies.filter(c => c.name.startsWith('sb-'));
           if (supabaseCookies.length > 1) {
-            // Keep only the first base cookie (no chunk suffix)
-            const baseCookie = supabaseCookies.find(c => !/\.\d+$/.test(c.name)) || supabaseCookies[0];
+            // Keep only the first base cookie (no chunk suffix), prefer the main auth cookie
+            const baseCookie = supabaseCookies.find(c => 
+              !/\.\d+$/.test(c.name) && c.name.includes('auth-token')
+            ) || supabaseCookies.find(c => !/\.\d+$/.test(c.name)) || supabaseCookies[0];
+            
             const finalCookies = [
               ...filteredCookies.filter(c => !c.name.startsWith('sb-')),
               baseCookie

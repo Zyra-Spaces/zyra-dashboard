@@ -341,12 +341,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     updateState({ isLoading: true, error: null, step: 'signing_in' });
 
     try {
+      // Validate Supabase client is properly initialized
+      if (!supabase) {
+        throw new Error('Authentication service is not available. Please check your configuration.');
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) throw error;
+      if (error) {
+        // Handle specific error types
+        if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
+          throw new Error('Unable to connect to authentication service. Please check your internet connection and try again.');
+        }
+        throw error;
+      }
 
       updateState({ 
         user: data.user, 
@@ -391,8 +402,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
     } catch (error: any) {
+      let errorMessage = 'Invalid email or password';
+      
+      // Handle network/connection errors
+      if (error?.message?.includes('Failed to fetch') || 
+          error?.message?.includes('NetworkError') ||
+          error?.code === -101) {
+        errorMessage = 'Unable to connect to authentication service. Please check your internet connection and ensure the Supabase configuration is correct.';
+      } else if (error?.message?.includes('Missing required environment variables')) {
+        errorMessage = 'Server configuration error. Please contact support.';
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
       updateState({ 
-        error: error.message || 'Invalid email or password', 
+        error: errorMessage, 
         isLoading: false,
         step: 'idle'
       });
