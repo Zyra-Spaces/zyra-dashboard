@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
@@ -11,6 +11,27 @@ export default function ForgotPasswordPage() {
   const router = useRouter();
   const { requestPasswordReset, isLoading, error, clearError, setEmail } = useAuth();
   const [email, setEmailValue] = useState("");
+
+  // CRITICAL: Clear ALL Supabase cookies on page load to prevent 431 errors
+  useEffect(() => {
+    const clearAllCookies = () => {
+      try {
+        const cookies = document.cookie.split(';');
+        cookies.forEach(cookie => {
+          const [name] = cookie.trim().split('=');
+          if (name.startsWith('sb-')) {
+            document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+            document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
+            document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=;`;
+          }
+        });
+        fetch("/api/clear-supabase-cookies", { method: "POST" }).catch(() => {});
+      } catch (error) {
+        // Silent fail
+      }
+    };
+    clearAllCookies();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

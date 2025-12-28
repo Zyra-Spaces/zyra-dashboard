@@ -16,13 +16,19 @@ export async function POST() {
     // Get all cookies
     const allCookies = cookieStore.getAll();
     
-    // Find all Supabase cookies (sb-*)
+    // Find all Supabase cookies (sb-*), including chunked cookies
     const supabaseCookies = allCookies.filter(cookie => 
       cookie.name.startsWith('sb-') || 
       cookie.name.includes('supabase')
     );
 
-    // Delete all Supabase cookies
+    // Count chunked cookies for logging
+    const chunkedCookies = supabaseCookies.filter(c => /\.\d+$/.test(c.name));
+    if (chunkedCookies.length > 0) {
+      console.log(`Clearing ${chunkedCookies.length} chunked cookies and ${supabaseCookies.length - chunkedCookies.length} base cookies`);
+    }
+
+    // Delete all Supabase cookies (including chunked ones)
     supabaseCookies.forEach(cookie => {
       // Delete with various path/domain combinations to ensure removal
       response.cookies.delete(cookie.name);
@@ -35,6 +41,13 @@ export async function POST() {
         expires: new Date(0),
         path: "/",
         domain: undefined,
+        maxAge: 0,
+      });
+      // Also try with empty domain explicitly
+      response.cookies.set(cookie.name, "", { 
+        expires: new Date(0),
+        path: "/",
+        domain: "",
         maxAge: 0,
       });
     });

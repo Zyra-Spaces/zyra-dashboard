@@ -83,8 +83,8 @@ export async function updateSession(request: NextRequest) {
   const supabaseCookies = allCookies.filter(c => c.name.startsWith('sb-'));
   const chunkedCookies = supabaseCookies.filter(c => /\.\d+$/.test(c.name));
   
+  // Delete ALL chunked cookies - they cause 431 errors
   if (chunkedCookies.length > 0) {
-    // Delete ALL chunked cookies - they cause 431 errors
     chunkedCookies.forEach(cookie => {
       supabaseResponse.cookies.delete(cookie.name);
       supabaseResponse.cookies.set(cookie.name, "", {
@@ -92,6 +92,24 @@ export async function updateSession(request: NextRequest) {
         path: "/",
         maxAge: 0,
       });
+    });
+  }
+  
+  // If there are multiple Supabase cookies, keep only the main one
+  if (supabaseCookies.length > 1) {
+    const baseCookies = supabaseCookies.filter(c => !/\.\d+$/.test(c.name));
+    const mainCookie = baseCookies.find(c => c.name.includes('auth-token')) || baseCookies[0];
+    
+    // Delete all other Supabase cookies except the main one
+    supabaseCookies.forEach(cookie => {
+      if (cookie.name !== mainCookie.name) {
+        supabaseResponse.cookies.delete(cookie.name);
+        supabaseResponse.cookies.set(cookie.name, "", {
+          expires: new Date(0),
+          path: "/",
+          maxAge: 0,
+        });
+      }
     });
   }
 

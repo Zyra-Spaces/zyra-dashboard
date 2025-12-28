@@ -22,6 +22,27 @@ export default function SetPasswordPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // CRITICAL: Clear ALL Supabase cookies on page load to prevent 431 errors
+  useEffect(() => {
+    const clearAllCookies = () => {
+      try {
+        const cookies = document.cookie.split(';');
+        cookies.forEach(cookie => {
+          const [name] = cookie.trim().split('=');
+          if (name.startsWith('sb-')) {
+            document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+            document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
+            document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=;`;
+          }
+        });
+        fetch("/api/clear-supabase-cookies", { method: "POST" }).catch(() => {});
+      } catch (error) {
+        // Silent fail
+      }
+    };
+    clearAllCookies();
+  }, []);
+
   // Redirect if not in the right step
   useEffect(() => {
     if (!user || step !== 'setting_password') {
