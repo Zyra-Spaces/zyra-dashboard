@@ -3,11 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack --port 8080",
-    "dev:large-headers": "set NODE_OPTIONS=--max-http-header-size=65536 && next dev --turbopack --port 8080",
-    "build": "next build --turbopack",
-    "start": "next start",
-    "start:large-headers": "set NODE_OPTIONS=--max-http-header-size=65536 && next start"
+    "dev": "node init && next dev --turbopack --port 8080",
+    "dev:large-headers": "node init && set NODE_OPTIONS=--max-http-header-size=65536 && next dev --turbopack --port 8080",
+    "build": "node init && next build --turbopack",
+    "start": "node init && next start",
+    "start:large-headers": "node init && set NODE_OPTIONS=--max-http-header-size=65536 && next start"
   },
   "dependencies": {
     "@editorjs/checklist": "^1.6.0",
