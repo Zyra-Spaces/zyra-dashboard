@@ -296,8 +296,7 @@ export default function IdeatorPage() {
           const retryAfter = data.retryAfter || 30;
           setRateLimitCountdown(Math.ceil(retryAfter));
           notify.error(
-            `Rate limit exceeded. Please wait ${Math.ceil(retryAfter)} seconds.`,
-            { duration: 5000 }
+            `Rate limit exceeded. Please wait ${Math.ceil(retryAfter)} seconds.`
           );
           throw new Error(
             `Rate limit exceeded. Please wait ${Math.ceil(retryAfter)} seconds before trying again.`
