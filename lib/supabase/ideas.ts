@@ -239,4 +239,3 @@ export async function getUserIdeasPaginated(page: number = 1, pageSize: number =
 
   return data || [];
 }
-
